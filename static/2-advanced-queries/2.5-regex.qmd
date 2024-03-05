@@ -1,0 +1,42 @@
+---
+title: "Advanced text methods"
+description: "Learn to use regex and full-text search in PostgreSQL to filter and find all types of text patterns"
+date: "2/13/2024"
+date-modified: "2/13/2024"
+---
+
+# Currently in DRAFT
+
+## How to use Regex
+
+### Common regex expressions
+
+#### Start and end
+
+#### Digit
+
+#### Spaces
+
+#### Text
+
+#### Multiple occurrences
+
+#### Multiple options
+
+#### Multiline
+
+#### Case sensitivity
+
+#### Lookahead
+
+#### Negative Lookahead
+
+#### Multiple matches
+
+## Groups
+
+## Text tokenization
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).

@@ -1,0 +1,8 @@
+---
+title: "Questions"
+description: "Learn to create, save and modify Metabase static or dynamic question or query and leverage the query builder options and data model explorer"
+date: "2/13/2024"
+date-modified: "2/13/2024"
+---
+
+# Currently in DRAFT

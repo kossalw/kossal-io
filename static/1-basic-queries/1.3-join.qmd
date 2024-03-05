@@ -1,0 +1,253 @@
+---
+title: "Join multiple tables"
+description: "Learn to use the JOIN clause in PostgreSQL to fetch data from multiple tables, you'll learn about INNER, LEFT, RIGHT, CROSS and FULL JOINs"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+Until now we have learned to query data from a single table and filter it. Now you'll learn how to query data from multiple tables and return it as a single result. Let's learn to use the `JOIN` clause.
+
+Imagine we have table 1 (T1) and table 2 (T2) and we want to join them, the first thing that we need is a join condition, this is a boolean expression that let's PostgreSQL evaluate if it should join one row of table 1 with another row of table 2. The second thing that we need is to define how to evaluate this condition and and the third is how to manage the final result. We'll start with the first type of join.
+
+## Inner join
+
+An `INNER JOIN` is the default `JOIN`, in fact you could omit the `INNER` clause directly and just use `JOIN`. It's the equivalent of an intersection between two sets, that means it only returns the rows that matches between two tables. It uses the following steps:
+
+1. Take a T1 row and evaluate the join condition with a T2 row
+2. If the join condition is satisfied, join them and return it in the result set
+3. If the join condition is not satisfied, then discard it and evaluate the same T1 row against the next T2 row
+4. Repeat until all T2 rows are evaluated, then go to the next T1 row and repeat all steps until all T1 rows are evaluated against all T2 rows. 
+
+> Don't worry if it's not clear now, we'll see some examples and then you can come back to review the steps
+
+Awesome, but what is a join condition? As with filters we usually don't want to join every T1 row with every T2 row, instead we want to use some logic, for example, take the `"Track"` table, we may want to create a table with the name of the track and the name of it's genre. If you check the `"Track"` table you'll see that we have no genre name column, but we do have a `"GenreId"` column and a `"Genre"` table with a `"Name"` column. That's a perfect situation where we can use a `JOIN` statement, by joining track rows with the a specific genre row we can achieve the result we're looking for, this condition can be translated to a query like:
+
+```sql
+select
+    "Track"."Name",
+    "Genre"."Name"
+from "Track"
+inner join "Genre" on "Genre"."GenreId" = "Track"."GenreId"
+```
+
+> All `JOIN` clauses are used after the `FROM` and before the `WHERE` clause
+
+> We don't have to use the `table.column` notation if the column name is unique but it's still good practice
+
+For every `"Track"` row we are joining a corresponding `"Genre"` row that uses the same `"GenreId"`. Because multiple `"Track"` rows have the same `"GenreId"` value, we'll be repeating the same `"Genre"` row for many `"Track"` rows, this makes sense as the relation between `"Track"` and `"Genre"` is many-to-one (many tracks share the same genre).
+
+Let's pause a little bit on the structure of the clause:
+
+- `inner join "Genre"` tells PostgreSQL that we want to join the `"Track"` table with the `"Genre"` table, the algorithm we'll use is an `INNER JOIN`
+
+- `on "Genre"."GenreId" = "Track"."GenreId"` this is the join condition, it tells PostgreSQL to only join `"Track"` rows with `"Genre"` rows where their respective `"GenreId"` value is equal
+
+> This structure is practically the same for any type of JOIN
+
+### Inner join with missing rows
+
+The previous example is a perfect join because for each track row we have a genre row, but that's not always the case. For example not every `"Employee"` was able to sell to a `"Customer"`, following the algorithm we know that if an employee cannot join a customer then it won't be included in the result set:
+
+```sql
+select
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    concat_ws(' ', c."FirstName", c."LastName") "Customer"
+from "Employee" e
+join "Customer" c on c."SupportRepId" = e."EmployeeId"
+```
+
+> When using multiple tables, it's a good idea to rename the table names to an alias to improve query writeup and readability
+
+If you checked the employees that appears in the previous example you'll see it does not include every employee from the `"Employee"` table. It's more evident if we count the individual distinct employees:
+
+```sql
+select distinct concat_ws(' ', e."FirstName", e."LastName") "Employee"
+from "Employee" e
+inner join "Customer" c on c."SupportRepId" = e."EmployeeId"
+```
+
+Only three employees we actually able to sell while they are 8 employees (`select count(*) from "Employee"`). This is most important feature of the `INNER JOIN`.
+
+### Multiple joins
+
+When you complete a join, you create another table that also can be joined, which means that you can chain joins for multiple tables. Let's join tracks with their invoice line and their invoice:
+
+```sql
+select
+    t."Name",
+    il.*,
+    i.*
+from "Track" as t
+join "InvoiceLine" as il using ("TrackId")
+join "Invoice" as i using ("InvoiceId")
+```
+
+> `USING(column1, column2, ...)` is equivalent to `ON t1.column1 = t2.colum2 and t1.column2 = t2.column2 and ...` and only works if the columns names used are equal on both tables
+
+You can use the `NATURAL` clause as an alternative to `USING` if you want to use all columns that have the same name as join conditions:
+
+```sql
+select
+    t."Name",
+    il.*,
+    i.*
+from "Track" as t
+natural join "InvoiceLine" il
+natural join "Invoice" i
+```
+
+Having said that we don't recommend using `NATURAL`, if any column name changes in the future it defaults to a `CROSS JOIN` instead of raising an error like `USING` would, that means that you would receive nonsensical results and it would take you a while to find the error.
+
+
+### Filters using JOIN
+
+Remember that `JOIN` clauses have to be used before the `WHERE` clause? That's because the `WHERE` clause allows us to filter every table referenced on the `JOIN` clauses. Let's see this with an example, will use the previous example but only include invoices billed from Germany and that costs more then 0.99:
+
+```sql
+select
+    t."Name",
+    il.*,
+    i.*
+from "Track" as t
+join "InvoiceLine" as il using ("TrackId")
+join "Invoice" as i using ("InvoiceId")
+where true
+    and il."UnitPrice" > 0.99
+    and i."BillingCountry" = 'Germany'
+```
+
+Hey, if join conditions and search conditions are boolean expressions, couldn't I use filters on the join conditions and skip the `WHERE` clause? You can definitely do that, but it's a bad practice, let's show you why using the previous example:
+
+```sql
+select
+    t."Name",
+    il.*,
+    i.*
+from "Track" t
+join "InvoiceLine" il on il."TrackId" = t."TrackId" and il."UnitPrice" > 0.99
+join "Invoice" i on i."InvoiceId" = il."InvoiceId" and i."BillingCountry" = 'Germany'
+```
+
+You could say that is personal taste, but I find the last query harder to read then the one where we used a `WHERE` clause. This is because we're mixing join conditions and filter conditions, it makes it more difficult to understand the intention of the query. Additionally, it's more difficult for PostgreSQL to use indexes to optimize join operations (for quicker queries), this is going to be covered in the [INDEXES](../2-advanced-queries/2.4-indexes.qmd) section.
+
+## Outer join
+
+Outer joins differ with inner joins in that at least one of the data sets will be preserved, even when the join condition is not met. They're 3 types of outer joins.
+
+### Left outer join
+
+Imagine that you want to create a query where you want all employees with their customers to be returned, even those employees that have not secured any sales. This is a `LEFT OUTER JOIN` because we want to conserve the rows of the left table (T1) no matter what, but only join T2 rows if the join condition is met. The algorithm goes as follows:
+
+1. Take a T1 row and evaluate the join condition with a T2 row
+2. If the join condition is satisfied, join them and return it in the result set
+3. If the join condition is not satisfied, then discard it and evaluate the same T1 row against the next T2 row
+4. Repeat until all T2 rows are evaluated, if no join was found for the T1 row, then return it to the result set and set any T2 column to NULL
+5. Go to the next T1 row and repeat all steps until all T1 rows are evaluated against all T2 rows.
+
+> Step 4 is what makes it different from an `INNER JOIN`
+
+Let's run the example:
+
+```sql
+select
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    concat_ws(' ', c."FirstName", c."LastName") "Customer"
+from "Employee" e
+left outer join "Customer" c on c."SupportRepId" = e."EmployeeId"
+```
+
+> The `OUTER` clause can be omitted, `left join "Customer" c on c."SupportRepId" = e."EmployeeId"` is equivalent
+
+Let's run another example, say we want to create a date series 
+
+You'll see that the result is mostly similar to the `INNER JOIN` example, but at the end you have the remaining employees that were not able to match any customer (the columns corresponding with the `"Customer"`table are set to null).
+
+### Right outer join
+
+Equivalent to `LEFT OUTER JOIN` but we conserve the T2 rows instead of T1. So:
+
+```sql
+select
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    concat_ws(' ', c."FirstName", c."LastName") "Customer"
+from "Customer" c
+right join "Employee" e on c."SupportRepId" = e."EmployeeId"
+```
+
+Is equivalent to:
+
+```sql
+select
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    concat_ws(' ', c."FirstName", c."LastName") "Customer"
+from "Employee" e
+left join "Customer" c on c."SupportRepId" = e."EmployeeId"
+```
+
+Most times you'll use a `LEFT OUTER JOIN` but we cover the `RIGHT OUTER JOIN` to be comprehensive.
+
+### Full outer join
+
+The `FULL OUTER JOIN` is exactly the opposite to an `INNER JOIN`, we want to join T1 to T2 but return all T1 and T2 rows that did not match at the end. You can think of it like the combination of a `LEFT OUTER JOIN` and `RIGHT OUTER JOIN`. The algorithms goes as follows:
+
+1. Do `INNER JOIN` between T1 and T2
+2. Append at the end every T1 row that was not included previously, fill the T2 columns with NULLs
+3. Append at the end every T2 row that was not included previously, fill the T1 columns with NULLs
+
+Let's do an example, let's find for the first 2 weeks of january what invoices and to what customers were we able to sell a track, but we want to conserve all dates were no sale was made and all customers too:
+
+```sql
+select
+    dates "Day",
+    i."InvoiceId",
+    concat_ws(' ', c."FirstName", c."LastName") "Customer"
+from generate_series(
+    '2009-01-01',
+    '2009-01-07',
+    interval '1 day'
+) as dates
+left join "Invoice" i on date_trunc('day', i."InvoiceDate") = dates
+full join "Customer" c using ("CustomerId")
+```
+
+## Cross join
+
+`CROSS JOIN` is equivalent to `INNER JOIN table on true`, that means that the resulting table will have all combinations of T1 row with a T2 row. This is useful for example if we want to create a table with weekly sales of each artists, even those that did not sell anything and for those weeks without sales:
+
+```sql
+select
+    dates::date "Day",
+    a."Name"
+from "Artist" a
+cross join generate_series(
+    '2009-01-01',
+    '2009-01-31',
+    interval '1 week'
+) as dates
+```
+
+> To actually calculate the sales we're missing some key concepts from the [GROUP AND SORT](1.4-group-sort.qmd) section
+
+## Lateral join
+
+We'll cover the `LATERAL` clause on the [SUBQUERIES](../2-advanced-queries/2.1-subqueries.qmd#lateral-join) section because we're missing some concepts. We're just leaving it here to be comprehensive.
+
+## Full join structure
+
+Now that you have a good grasp of join operations, we'll leave here examples of the complete structure of a join:
+
+```
+T1 CROSS JOIN T2
+T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 ON boolean_expression
+T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 USING ( join column list )
+T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
+```
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).
+
+1. Join all bookings with their flights, aircraft and seats.
+2. Create a table with the playlist, track, genre and artist.
+3. Join customers, employees, invoices and invoice lines.
+4. Generate a daily sequence from 2016-08-11 to 7 days ahead, and join it with the flights by scheduled departure

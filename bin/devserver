@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -e
+
+# Function to kill background processes
+cleanup() {
+  echo "Killing main server and web processes"
+  [[ -n $PID1 ]] && kill $PID1
+  [[ -n $PID2 ]] && kill $PID2
+  exit 0
+}
+
+# Trap SIGINT (Ctrl+C) and SIGTERM
+trap cleanup SIGINT SIGTERM
+
+# Start the compilation process
+mill api.compile
+
+# Run the main server in the background and capture its PID
+mill -w api.runMain com.kossalw.api.MainServer &
+PID1=$!
+
+# Run the web optimization in the background and capture its PID
+mill -w web.fastOpt &
+PID2=$!
+
+# Wait for any of the background processes to finish
+wait $PID1 $PID2

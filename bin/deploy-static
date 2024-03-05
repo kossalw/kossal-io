@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -e
+
+# Remove _site cache
+rm -rf ./_site
+
+# Render html to _site
+quarto render static --to html --output-dir ../_site
+
+# Copy query editor base HTML file
+cp ./api/resource/index.html ./_site/query-editor.html
+
+# Copy query editor base HTML file
+mill web.fullLinkJS
+cp ./out/web/fullLinkJS.dest/main.js ./_site/query-editor.js
+cp ./out/web/fullLinkJS.dest/main.js.map ./_site/query-editor.js.map
+
+# Import env
+export $(cat .env | sed 's/#.*//g' | xargs)
+
+commit_sha=$(git rev-parse --short HEAD)
+timestamp=$(date +%s)
+tag="$commit_sha-$timestamp"
+
+# Clone static repository
+if [ ! -d "$GIT_REPOSITORY" ]; then
+    git clone --branch $GIT_BRANCH "https://$GIT_USER:$GIT_TOKEN@github.com/$GIT_USER/$GIT_REPOSITORY.git"
+fi
+
+# Copy files from _site to repository
+cd ./"$GIT_REPOSITORY"
+rsync -rvc --delete --progress --exclude='.git/' --exclude='.docker/' "../_site/" .
+
+# Push changes
+git add -A
+git commit -m "From $GIT_REPOSITORY sha: $tag"
+git push origin "$GIT_BRANCH" || true
+
+# Eliminate _site and repository
+cd ..
+rm -rf ./_site
+rm -rf ./"$GIT_REPOSITORY"

@@ -1,0 +1,24 @@
+---
+title: "Working with JSON and XML data"
+description: "Learn to query directly keys, values and attributes of JSON and XML data in PostgreSQL"
+date: "2/13/2024"
+date-modified: "2/13/2024"
+---
+
+# Currently in DRAFT
+
+## What is JSON?
+
+## What is XML?
+
+## Check the column type
+
+## Fetch nodes, keys, values and attributes
+
+### Common functions
+
+#### JSON & XML set returning functions
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).

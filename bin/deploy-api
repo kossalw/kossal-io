@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -e
+
+# Import env
+export $(cat .env | sed 's/#.*//g' | xargs)
+
+# Create jar
+mill -i api.assembly
+
+commit_sha=$(git rev-parse --short HEAD)
+timestamp=$(date +%s)
+tag="$commit_sha-$timestamp"
+image_name="query-editor-api"
+
+# Build image
+docker buildx build --platform linux/amd64,linux/arm64 -t "$image_name":"$tag" -f ./kubernetes/container/"$image_name"/Dockerfile .
+
+# Upload image
+docker tag "$image_name":"$tag" "$DIGITAL_OCEAN_REGISTRY"/"$image_name":"$tag"
+docker push "$DIGITAL_OCEAN_REGISTRY"/"$image_name":"$tag"
+
+# Deploy
+helm upgrade "$image_name" \
+    --set image.tag="$tag" \
+    --set image.repository="$DIGITAL_OCEAN_REGISTRY/query-editor-api" \
+    "kubernetes/charts/$image_name"

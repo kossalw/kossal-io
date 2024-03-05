@@ -1,0 +1,301 @@
+---
+title: "Subqueries"
+description: "Learn to use subqueries, recursive and non-recursive CTEs, virtual tables, and lateral joins in PostgreSQL to create complex and structured queries"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+Congratulations for passing the basic queries section! Even without knowing any advance methods you've learn very powerful tools that will empower you to leverage your database data. But why stop here? Let's go from good to incredible.
+
+## Select from subquery
+
+Until know we have learn to create a query to fetch, transform and aggregate data from tables. That's great but they're data problems where we would benefit from being able to fetch data from another query and that's where subquery enters. Subqueries are queries inside another query that can return a *scalar* value (which is a 1x1 table) or another table.
+
+Let's create an example:
+
+```sql
+select
+    concat_ws(', ', e."LastName", e."FirstName") "Employee",
+    sum(i."Total") "Employee sold on 2010",
+    (select sum(i2."Total") from "Invoice" i2 where date_trunc('year', i2."InvoiceDate") = '2010-01-01') "Total sold on 2010",
+    round(
+        100 * (select sum(i."Total")::numeric / sum(i2."Total") from "Invoice" i2 where date_trunc('year', i2."InvoiceDate") = '2010-01-01'),
+        1
+    ) || '%' "% Sold by employee"
+from "Employee" e
+inner join "Customer" c on c."SupportRepId" = e."EmployeeId"
+inner join "Invoice" i using ("CustomerId")
+where true
+    and date_trunc('year', i."InvoiceDate") = '2010-01-01'
+group by 1, 3
+```
+
+> Take the time to read each statement of the query, it's complicated but essential to develop the patience and skill to understand the intention of a query
+
+The above query uses two subqueries, one to calculate the total sales of 2010 and another one to calculate the percentage of sales that each employee had on the total invoices of 2010. Without using subqueries it would not be able to mix two different aggregations (one per employee and another per year).
+
+> Both subqueries return a *scalar* value
+
+Another important feature is the ability of subqueries of referencing data outside of it, let's analyze our two subqueries:
+
+- The first subquery `(select sum(i2."Total") from "Invoice" i2 where date_trunc('year', i2."InvoiceDate") = '2010-01-01')` is completely independent from the original query
+
+- The second subquery `(select sum(i."Total")::numeric / sum(i2."Total") from "Invoice" i2 where date_trunc('year', i2."InvoiceDate") = '2010-01-01')` uses the statement `sum(i."Total")` which is data that comes from the outer query
+
+## From subquery
+
+We have seen how to call subqueries inside the `SELECT`, additionally we can also use it from `FROM` statement. In fact you'll see that we can call subqueries in practically any clause. For example, we'll calculate how many tracks have been created by each composer. Now the `"Composer"` column can contain multiple composers, so we can use the `string_to_array` function to create an array of composers separated by `\``, and then use the `unnest` function to return the array as a column of multiple values. Finally we create an outer query that count the amount of times a composer is mentioned in a track and we get this:
+
+```sql
+select 
+    "Artist"."Artist",
+    count(*) "# Tracks composed"
+from (
+    select 
+        unnest(string_to_array("Composer", ',')) "Artist",
+        "TrackId"
+    from "Track"
+) as "Artist"
+group by 1
+order by 2 desc
+```
+
+## Join subquery
+
+We can join to a subquery result. In this case we're using the first example, but instead of calculating two times the total sales on the `SELECT` statement, we do it once in the `JOIN` statement and reference it in the `SELECT`.
+
+```sql
+select
+    concat_ws(', ', e."LastName", e."FirstName") "Employee",
+    sum(i."Total") "Employee sold on 2010",
+    "Total"."Total" "Total sold on 2010",
+    round((sum(i."Total")::numeric / "Total"."Total") * 100, 1) || '%' "% Sold by employee"
+from "Employee" e
+inner join "Customer" c on c."SupportRepId" = e."EmployeeId"
+inner join "Invoice" i using ("CustomerId")
+inner join (
+    select sum(i2."Total") "Total"
+    from "Invoice" i2 
+    where date_trunc('year', i2."InvoiceDate") = '2010-01-01'
+) as "Total" on true -- We use a true condition because we want all rows to join against the total sales value
+where true
+    and date_trunc('year', i."InvoiceDate") = '2010-01-01'
+group by 1, 3
+```
+### Lateral subquery
+
+The only limitation of using subquery in the `FROM` and `JOIN` clauses is that we cannot use data from the outer query as we could from the `SELECT` clause. To achieve it we need to use the `JOIN LATERAL` clause, the reason is quite simple, you first need to define your outer data before using it in a subquery. That means that `FROM` and `JOIN` clauses are run first, then `JOIN LATERAL` clauses are run using the previous information. Let's do an example, say we want to calculate how many scheduled flights for next week did we have each day on august 2017, we would need to create 30 different queries to get that number but using `JOIN LATERAL` were able to loop the results of the `generate_series` result and create a subquery for each row:
+
+```sql
+select
+    dates::date "Day",
+    flights."All flights" as "Next week scheduled flights",
+    flights."Flights departing LED" as "Next week scheduled flights departing LED",
+    flights."Flights departing GOJ" as "Next week scheduled flights departing GOJ",
+    flights."Flights departing KHV" as "Next week scheduled flights departing KHV"
+from generate_series(
+    '2017-07-01',
+    '2017-07-01'::date + interval '1 month',
+    interval '1 day'
+) as dates
+join lateral (
+    select
+        count(*) "All flights",
+        count(*) filter (where f.departure_airport = 'LED') "Flights departing LED",
+        count(*) filter (where f.departure_airport = 'GOJ') "Flights departing GOJ",
+        count(*) filter (where f.departure_airport = 'KHV') "Flights departing KHV"
+    from bookings.flights f
+    where true
+        and date_trunc('day', f.scheduled_departure) >= dates
+        and date_trunc('day', f.scheduled_departure) <= dates + interval '1 week'
+) flights on true
+```
+
+> `JOIN LATERAL` is also a great tool to reuse calculations, that's because if we define once a calculation the subquery, we can use it multiple times in the `SELECT` statement
+
+## Filtering using subqueries
+
+Another great use for subqueries is inside the `WHERE` clause, we can use it in multiple ways.
+
+### Scalar value
+
+The following query finds all `"Invoice"`s that have a `"Total"` amount above the average `"Total"` amount.
+
+```sql
+select *
+from "Invoice"
+where true
+    and "Total" > (select avg("Total") from "Invoice")
+```
+
+### ANY & ALL
+
+Another way of using subqueries in a `WHERE` statement is by checking if an element exists in a list. In this example we are finding all invoices that belong to the top 3 employee sellers:
+
+```sql
+select i.*
+from "Invoice" i
+join "Customer" c using ("CustomerId")
+join "Employee" e on e."EmployeeId" = c."SupportRepId"
+where true
+    and e."EmployeeId" = ANY (
+        select e2."EmployeeId"
+        from "Employee" e2
+        join "Customer" c2 on c2."SupportRepId" = e2."EmployeeId"
+        join "Invoice" i2 using ("CustomerId")
+        group by 1
+        order by sum(i2."Total") desc
+        limit 3
+    )
+```
+
+> You can use the `ALL` clause if we want to check that all results returned by the subquery succeeds the condition
+
+### Exists
+
+The `EXISTS` clause returns a boolean value which is true if the subquery that it evaluates returns at least 1 result, if NULL is returned then it returns false. The most basic example is:
+
+```sql
+select exists (select 1); -- Will return true because select 1 returns the value 1
+select exists (select 1 where false); -- Will return false because the subquery returns no result
+```
+
+This is very useful for when we need to return some information but we need to check for some condition that we do not want to use in the `SELECT` clause. The following example finds all tickets that have had at least one flight delayed for more then 15 minutes:
+
+```sql
+select *
+from bookings.tickets t
+where true
+    and exists (
+        select
+        from bookings.flights f
+        join bookings.ticket_flights tf using (flight_id)
+        where true
+            and tf.ticket_no = t.ticket_no
+            and f.actual_arrival is not null
+            and f.actual_departure is not null
+            and (f.scheduled_arrival + interval '15 minute' < f.actual_arrival
+                or f.actual_departure + interval '15 minute' < f.actual_departure)
+        limit 1
+    )
+limit 1
+```
+
+## CTE
+
+Subqueries can be a great tool for complex queries but they can be difficult to read. If our query is getting out of hand, we could use Common Table Expressions (or CTEs), which is used to create and organize temporal virtual tables that only exist while running the query. Another benefit is that CTEs are only evaluated once, so it's a way of reducing computation (which for heavier queries can speed up query execution times). Let's start with a simple example:
+
+```sql
+with country_sales as (
+    select 
+        "BillingCountry" "Country", sum("Total") "Total"
+    from "Invoice"
+    group by 1
+    order by 2 desc
+), total_sales as (
+    select sum("Total") "Total Sales" from country_sales
+)
+select 
+    "Country",
+    "Total" "Country total sales",
+    round(100 * ("Total" / "Total Sales"), 1) || ' %' "% Sales over total"
+from country_sales
+join total_sales on true
+```
+
+> To create a CTE we need to use the `WITH` clause only once, then specify the name that you want to give your CTE followed by the `AS` clause and a subquery. If you want to create multiple CTEs then you need to separate each subquery with a `,` and repeat the same syntax
+
+> Once the CTE is created, we can use it below as it was a table that exists in the database. That means that it can be referenced from below `FROM`, `JOIN` and other clauses
+
+The above query calculates the countries total sales and the percentage it represents over the total sales. This can be achieve using subqueries but there're 2 advantages:
+
+1. We can give a specific name to each subquery which increases readability as it communicates directly the objective of that subquery
+2. We avoided calling the `"Invoice"` table twice because we're calculating the total sales using the result of the first CTE.
+
+### Recursive CTE
+
+Something that conventional subqueries cannot do are recursive queries, but CTEs can! This means that you can use the results of an initial query to run another query, and again use the new results for another query and do it again until no results are returned. This is forms a loop that for certain situations may be necessary, like when you don't know how many times should you repeat a query. Let's see a basic example by creating a counter:
+
+```sql
+with recursive counter as (
+    select 1 as "Index"
+    union all
+    select counter."Index" + 1 from (select 0) as x
+    join counter on true
+    where counter."Index" < 10
+)
+select * from counter
+```
+
+If you run it you'll find that it creates a numeric series from 1 until 9. The steps to do this are:
+
+1. We first start by writing `WITH RECURSIVE` which instructs PostgreSQL that the `counter` CTE will use a recursive algorithm
+
+2. Then inside the CTE we define the first query, we'll use the results of this query to start a loop. In this case we just created a query that returns the number 1
+
+3. Then we'll use `UNION` or `UNION ALL` to append the results of the first query with the results of the second query (as many times as the second query is executed)
+
+4. Now define the second query. This query can use the results of the first query, which in the first run is just the number 1. We'll use the `JOIN` clause, to access this value and sum it by 1. The results of this second query will be stored in the `counter` CTE.
+
+5. Because the second query returned a result (the number 2), we'll run the second query again, but this time the `counter` CTE will have the value 2, this means that the second iteration of the second query will return 3
+
+6. We'll rerun the second query until it returns `NULL`, which happens when the value reaches 10 (check the `WHERE clause`)
+
+7. Finally, the `counter` CTE will unite all results (1 until 9) and make it available down the line
+
+> You cannot use the `FROM` clause to reference the CTE at the second query, that's why we used the subquery `(select 0)` which does nothing
+
+> Please don't use this in production, it's just an example to illustrate a point, instead use the `generate_series` function as it's order of magnitudes more efficient.
+
+Recursive queries are especially useful when you have a table with a value that references itself. Let's imagine we have a table with persons and their parent ids, we could fetch the entire family of one member with:
+
+```sql
+with sample_data as (
+    SELECT * FROM (
+        VALUES 
+            (1, 'George', NULL, NULL),
+            (2, 'Annie', NULL, NULL),
+            (3, 'Gaby', 1, 2),
+            (4, 'Jose', 1, 2),
+            (5, 'Agusto', 4, NULL),
+            (6, 'Sara', NULL, 3)
+    ) AS t (id, name, father_id, mother_id)
+)
+select * from (
+    with recursive sara_family as (
+        select * from sample_data where name = 'Sara'
+        union all
+        select sd1.*
+        from sample_data sd1
+        join sara_family sf on sf.father_id = sd1.id or sf.mother_id = sd1.id
+    )
+    select * from sara_family
+) as x
+```
+
+> `VALUES` is a clause that is very useful to create data, is equivalent to multiple `SELECT` statements united by `UNION ALL`s
+
+> To edit the column names of the `VALUES` result we use `AS t (id, name, father_id, mother_id)`
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).
+
+1. The following query does not separate correctly composers that have their names separated with *&* and */* separators. Fix it to include all artists:
+
+```sql
+select 
+    "Artist"."Artist",
+    count(*) "# Tracks composed"
+from (
+    select 
+        unnest(string_to_array("Composer", ',')) "Artist",
+        "TrackId"
+    from "Track"
+) as "Artist"
+group by 1
+order by 2 desc
+```
+
+2. Find all tickets with at least 1 canceled flight in business class.
+3. Recursively calculate the accumulated percentage sale of each billing country that represents at least 10% of total sales. This accumulated percentage should equal 100% at then end.

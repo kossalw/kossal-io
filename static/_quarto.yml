@@ -1,0 +1,67 @@
+project:
+  type: website
+
+website:
+  title: "Data Analysis using PostgreSQL"
+  description: "This site will teach you to do data analysis using PostgreSQL, create graphs and dashboards using Metabase as a business intelligence tool"
+  
+  site-path: "/"
+  site-url: "https://kossal.io/"
+  page-navigation: true
+  back-to-top-navigation: true
+  reader-mode: true
+  
+  favicon: logo.png
+  image: logo.png
+  twitter-card: true
+  open-graph: true
+  
+  google-analytics: "G-8XZ2521HL7"
+  cookie-consent: true
+  
+  navbar:
+    background: dark
+  
+  sidebar:
+    logo: logo.png
+    style: "floating"
+    contents:
+      - index.qmd
+      - section: "Basic Queries"
+        contents:
+          - "1-basic-queries/1.1-select.qmd"
+          - "1-basic-queries/1.2-where.qmd"
+          - "1-basic-queries/1.3-join.qmd"
+          - "1-basic-queries/1.4-group-sort.qmd"
+      - section: "Advanced Queries"
+        contents:
+          - "2-advanced-queries/2.1-subqueries.qmd"
+          - "2-advanced-queries/2.2-over.qmd"
+          - "2-advanced-queries/2.3-json-and-xml.qmd"
+          - "2-advanced-queries/2.4-indexes.qmd"
+          - "2-advanced-queries/2.5-regex.qmd"
+      - section: "Business intelligence with Metabase"
+        contents:
+          - "3-business-intelligence-with-metabase/3.1-questions.qmd"
+          - "3-business-intelligence-with-metabase/3.2-graphs.qmd"
+          - "3-business-intelligence-with-metabase/3.3-dashboards.qmd"
+          - "3-business-intelligence-with-metabase/3.4-collaboration.qmd"
+          - "3-business-intelligence-with-metabase/3.5-publishing.qmd"
+          
+  page-footer: 
+    left: "Copyright 2024, Christopher Kossal Wilson"
+    right:
+      - icon: github
+        href: https://github.com/kossal
+      - icon: linkedin 
+        href: https://www.linkedin.com/in/christopherkossalwilson
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    css: styles.css
+    toc: true
+
+editor: visual

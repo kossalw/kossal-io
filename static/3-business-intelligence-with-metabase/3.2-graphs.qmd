@@ -1,0 +1,10 @@
+---
+title: "Visualization"
+description: "Learn to create Metabase visualizations, graphs and plots including scatter plots, donut plot, tables, maps, pivot tables, line graphs, bar graphs and more"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+# Currently in DRAFT
+
+## Exercises

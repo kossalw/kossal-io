@@ -1,0 +1,10 @@
+---
+title: "Collaboration"
+description: "Learn to use Metabase pulse, models, segments, and collections to increase collaboration in your team"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+# Currently in DRAFT
+
+## Exercises

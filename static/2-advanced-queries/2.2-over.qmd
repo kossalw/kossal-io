@@ -1,0 +1,16 @@
+---
+title: "Window functions"
+description: "Learn to use window functions in a visual, easy, and intuitive way using PostgreSQL to create grouped and aggregated metrics without collapsing rows"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+# Currently in DRAFT
+
+## Over
+
+Window functions allows us to compute aggregate information without collapsing rows.
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).

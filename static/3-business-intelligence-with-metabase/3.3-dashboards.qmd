@@ -1,0 +1,10 @@
+---
+title: "Dashboards"
+description: "Learn to create Metabase dashboards to organize visualizations, graphs, and plots. Create date, text or number filters that are connected to the dashboard"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+# Currently in DRAFT
+
+## Exercises

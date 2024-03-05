@@ -1,0 +1,20 @@
+---
+title: "SQL indexes"
+description: "Learn to use indexes in PostgreSQL to create faster queries and analyze the plan of query execution"
+date: "2/13/2024"
+date-modified: "2/13/2024"
+---
+
+# Currently in DRAFT
+
+## What's an index
+
+## Types of index
+
+## Using PLAN to review if we're using an index
+
+## Multiple indexes
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).

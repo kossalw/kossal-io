@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -e
+
+# Sync the public repository
+export $(cat .env | sed 's/#.*//g' | xargs)
+
+# Git secrets for Nginx server
+kubectl delete secret public-git-secrets || true
+kubectl create secret generic public-git-secrets \
+    --from-literal=GIT_USER="$GIT_USER" \
+    --from-literal=GIT_TOKEN="$GIT_TOKEN" \
+    --from-literal=GIT_REPOSITORY="$GIT_REPOSITORY" \
+    --from-literal=GIT_BRANCH="$GIT_BRANCH"
+
+# Environment configmap
+kubectl delete configmap environment-config || true
+kubectl create configmap environment-config \
+    --from-literal=ENVIRONMENT=PROD
+
+# Metabase configmap
+kubectl delete configmap metabase-config || true
+kubectl create configmap metabase-config \
+    --from-literal=METABASE_API_HOST="$METABASE_API_HOST"
+
+# Metabase secrets
+kubectl delete secrets metabase-secrets || true
+kubectl create secret generic metabase-secrets \
+    --from-literal=METABASE_USER="$METABASE_USER" \
+    --from-literal=METABASE_PASSWORD="$METABASE_PASSWORD" \
+    --from-literal=MB_DB_HOST="$METABASE_DB_HOST" \
+    --from-literal=MB_DB_DBNAME="$METABASE_DB_DATABASE" \
+    --from-literal=MB_DB_USER="$METABASE_DB_USER" \
+    --from-literal=MB_DB_PASS="$METABASE_DB_PASSWORD" \
+    --from-literal=MB_DB_PORT="$METABASE_DB_PORT" \
+    --from-literal=MB_DB_TYPE="$METABASE_DB_TYPE" \
+    --from-literal=MB_ENCRYPTION_SECRET_KEY="$METABASE_SECRET_KEY"
+
+# Digital ocean access token for certificate renewal
+kubectl delete secrets digitalocean-dns || true
+kubectl create secret generic digitalocean-dns \
+    --from-literal=access-token="$DIGITAL_OCEAN_KEY"

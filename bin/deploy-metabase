@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -e
+
+image_name="metabase"
+
+# Deploy
+# helm install "$image_name" kubernetes/charts/"$image_name"
+helm upgrade "$image_name" kubernetes/charts/"$image_name"

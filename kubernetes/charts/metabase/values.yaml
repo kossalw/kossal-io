@@ -1,0 +1,78 @@
+# Default values for query-editor-api.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: docker.io/metabase/metabase
+  pullPolicy: IfNotPresent
+  tag: "v0.48.7"
+  securityContext: {}
+
+env:
+  secrets:
+    - name: metabase-secrets
+      key: MB_DB_TYPE
+    - name: metabase-secrets
+      key: MB_DB_DBNAME
+    - name: metabase-secrets
+      key: MB_DB_PORT
+    - name: metabase-secrets
+      key: MB_DB_USER
+    - name: metabase-secrets
+      key: MB_DB_PASS
+    - name: metabase-secrets
+      key: MB_DB_HOST
+    - name: metabase-secrets
+      key: MB_ENCRYPTION_SECRET_KEY
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+    # nginx.ingress.kubernetes.io/use-regex: "true"
+    # nginx.ingress.kubernetes.io/rewrite-target: /$2
+  kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: metabase.kossal.io
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+    - secretName: kossal.io-certificate
+      hosts:
+        - "*.kossal.io"
+      
+resources:
+  limits:
+    cpu: 1
+    memory: "1G"
+  requests:
+    cpu: 1
+    memory: "1G"
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  failureThreshold: 18 # 10 minutes to start due to migrations
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 600
+  periodSeconds: 30
+
+serviceAccount:
+  create: false
+
+autoscaling:
+  enabled: false

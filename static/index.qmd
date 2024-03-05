@@ -1,0 +1,126 @@
+---
+title: "Introduction"
+description: "This site will teach you to do data analysis using PostgreSQL, create graphs and dashboards using Metabase as a business intelligence tool"
+date: "2/13/2024"
+date-modified: "2/14/2024"
+---
+
+## Objective and motivations
+
+Welcome to the *Data Analysis using PostgreSQL* website! This site is for analysts, researchers, programmers or data enthusiasts who want to learn to do data analysis using information stored in PostgreSQL databases, and as a bonus, want to visualize and communicate their findings using Metabase as a Business Intelligence tool. The bulk of the site is invested in learning how to query information, so you can use it even if you only want to learn PostgreSQL and not Metabase. Also, this book focuses on the fetching part, not the administration or mutation of databases.
+
+You don't need any SQL previous knowledge to take this course, and if you have some experience I'll bet you'll learn something new that will help you.
+
+### Why would it be worth it to learn SQL for data analysis?
+
+SQL does not sound as attractive as learning other hot tools like Python, R, Tableau or even Excel. Indeed, SQL is not as friendly, has fewer features and is worse suited for complex scenarios. Having said that, the simplicity and limitations of SQL are what make it so powerful for day-to-day activities.
+
+Information in companies and organizations is usually stored in databases, and most of this data can be accessed using an SQL-like language. This occurs because decades ago the ANSI/ISO developed SQL as a standard for database creators to help them design their database language, and to reduce switching costs for developers to start using a new database, creators complied mostly with the SQL standard. Right now SQL is highly regarded as a battle-tested standard that allows analysts, developers and applications to interact safely and expressively with databases.
+
+All of this is to say that learning SQL will empower you to fetch data from almost any database which can fulfill your data requirements quickly and directly from the source. 95% of the time is quicker to do an SQL statement than to import and analyze information in Excel or any other tool. So consider SQL as an essential skill in your analyst tool belt.
+
+Additionally, even if your organization can boast an awesome data pipeline that cleans and organizes data for your use, who's to say that the data engineer knows exactly your data needs? Having SQL knowledge allows you to work alongside the engineers using the same language and make sure the pipeline is achieving exactly what you need.
+
+Finally, being able to understand the data source will force you to understand how your organization's data is organized and created at the service or app level. It will give you an extra advantage over other coworkers that you can use to develop your career.
+
+### But why [PostgreSQL](https://www.postgresql.org/)?
+
+Currently, PostgreSQL is the [4th most used relational database](https://www.statista.com/statistics/1131568/worldwide-popularity-ranking-relational-database-management-systems/), second for open source relational database and has been gaining traction for its ease of use, extensive tooling and performance. It's been especially used in startups, small to medium organizations so there is a high chance that you'll find it in the wild. The rest of the major relational databases are heavily used in enterprise and legacy applications, so I would bet that there are less chances of working with them as a data analyst.
+
+PostgreSQL has powerful features for querying so we highly recommend learning it, and it can be easily translated to other SQL engines or databases that allow SQL-like queries. Here are some important features:
+
+- **Scalability**: databases can be hosted on a single computer or a cluster of multiple nodes, and sharding allows for horizontal scaling and load balancing.
+- **Replication**: can be easily done to create read-only databases and ensure backups.
+- **Data types**: supports a variety of data types for different uses like arrays, JSON, XML and more. Also, it boosts support for Spatial, Vector and NoSQL capabilities.
+- **Concurrency**: PostgreSQL has been battle-tested for years on heavy workloads across the biggest organizations for millions of users and applications.
+- **Data integrity**: it's ACID compliant.
+- **Transactions**: it allows for multiple queries to be grouped so that changes are only applied if all queries are applied correctly.
+- **Extensibility**: PostgreSQL has a multitude of open-source and paid plugins or external tools for any situation or need. 
+- **Security**: PostgreSQL has strong security measures and a robust privilege system designed to protect against attackers and mistakes.
+- **Support**: the community actively maintains and releases new versions of PostgreSQL recurrently to improve functionality, security and performance.
+
+### And why Metabase?
+
+This is definitively a personal preference but there are good reasons:
+
+- It's an open-source program that small organizations and startups can quickly set up freely (without taking into account the server cost of hosting Metabase themselves)
+- By hosting it yourself you can scale users without incurring in prohibited user charges (hello Tableu...)
+- It has awesome and modern UI, which not only is not common in open-source programs but is essential if you want to share this visualization with clients and partners.
+- Did I say that you can share your visualization and dashboards with clients and partners? It is very developer-friendly and has an API that enables programmatic visualizations. Picture a platform where your clients can review their results dashboard, but you only created one dashboard that is dynamically feeds data by your server depending on what your user should see.
+- Metabase can connect to [multiple sources](https://www.metabase.com/data_sources/) and has SQL-first support for query creation and database exploration
+- You can create and store dynamic questions, graphs and dashboards that later can be shared with coworkers or external stakeholders
+- You only need [docker](https://www.docker.com/products/docker-desktop/) to use it [locally](https://www.metabase.com/docs/latest/installation-and-operation/running-metabase-on-docker)
+- The graph options are limited in comparison to other BI tools, which sound like a disadvantage but more often than not complex graphs are used incorrectly and obfuscate data communication. We have found that Metabase forces the user to think about what they want to communicate and in that situation the graph options are more than enough
+
+There are many more reasons but the best test is to use it yourself and evaluate if it fits your needs. As a caveat, Metabase indeed has a premium tier but it's more tailored for enterprises that want granular control over data access and need customer support, so for most organizations is not needed or for this point other programs would be considered. 
+
+## Prerequisites
+
+### Query editor
+
+This site includes a [query editor](query-editor.html) where you can run queries and complete exercises. I recommend having the [query editor](../query-editor.html) opened in another tab while you are studying each section.
+
+### BI tool
+
+The last chapter uses [Metabase](https://www.metabase.com/) as the Business Intelligence tool to build graphs and dashboards. If you're taking a course you'll be given credentials to access a Metabase instance. If you're not enrolled, you can also request the installation steps to host your own local Metabase to [courses@kossal.io](mailto:courses@kossal.io), or alternatively you can use other BI tools like [PowerBI](https://www.microsoft.com/en-us/power-platform/products/power-bi), [Tableau](https://public.tableau.com/app/discover) or [others](https://dashboardfox.com/blog/7-best-free-business-intelligence-bi-software-tools-2023/).
+
+## What will you learn
+
+-   Query or fetch data in a specific format from a PostgreSQL database
+-   Filter rows to only retrieve specific information
+-   Aggregate data based on variables and windows
+-   Use joins to access data from multiple tables
+-   Work with JSON and XML data in PostgreSQL queries
+-   Basic understanding on how to capitalize indexes to improve query performance
+-   Organize queries using CTE and subqueries
+-   Create dynamic Metabase graphs, dashboards and how to share them
+
+### What won't you learn
+
+-   Create, deploy or manage a PostgreSQL database
+-   Design or implement schemas, tables, views, constraints, triggers, procedures, functions, users, ..etc
+-   Manage permissions
+-   Insert, update or delete data
+-   Create, deploy or manage a Metabase instance
+
+### Site Structure
+
+This site is divided into 3 sections:
+
+1. **Basic Queries**: you'll learn to create a complete query, using the structure: SELECT, FROM, JOIN, WHERE, GROUP, HAVING, ORDER, LIMIT
+2. **Advanced Queries**: we'll use less common but very powerful commands to better structure and accomplish complex long queries, looking to use indexes to improve speed query speed
+3. **Business Intelligence with Metabase**: learn to graph query results and organize them in dynamic dashboards. Although the material uses Metabase, you could use any other BI tool.
+
+Finally, this website serves to teach tools but we don't hope to teach the ability of to craft key questions and interpret data correctly, it's a massive and exciting changing field and they're many better resources. If you want to develop skills for Data Analysis or Data Science we recommend a couple of books, but we highly encourage you to do your research:
+
+-   [The Model Thinker](https://www.amazon.com.mx/Model-Thinker-What-Need-Know/dp/0465094627)
+-   [Data Science for Business](https://www.amazon.com.mx/Data-Science-Business-Data-Analytic-Thinking/dp/1449361323)
+-   [Python for Everybody: Exploring Data in Python 3](https://www.py4e.com/book.php)
+-   [Modern Data Science with R](https://mdsr-book.github.io/mdsr2e/)
+-   [R for Data Science](https://r4ds.hadley.nz/)
+
+### Considerations
+
+In this site we follow particular formatting guidelines for queries to ease query writing and reading. We believe that queries should be structured and organized so that stakeholders can rapidly understand, verify and challenge them. This way we can spend more time on what's valuable (interpreting the data and arriving to shared conclusions).
+
+## Getting help
+
+This course will ask you to solve exercises and you'll find situations where the PostgreSQL server returns an error. If you're taking a course, then capitalize on your instructors, ask them constantly and extensively. Even so and if your not taking a course, follow these steps to solve your error:
+
+1.  Review the error message thoroughly. Error stacks can be intimidating, but if you avoid them or ask for help immediately after an error, then you're not learning the critical skill of troubleshooting. Take your time to read the error message, understand it, review very carefully your query and try to fix it. 90% of times it's a typing error like misplacing or omitting commas, using incorrectly double quotes or single quotes, misspelling names or other basic mistakes. Running, fixing and re-running a query until it works is part of the day-to-day tasks so get used to quickly solving your errors.
+
+2.  Use google to search your specific error. You can use specialized sites like [Stackoverflow](https://stackoverflow.com/). In fact we highly encourage you to use AI tools like [ChatGPT](https://chat.openai.com/) as they are able to explain your mistakes and give you step-by-step explanations. Having said that remember that AI is only a tool, you're always responsible for the correctness of your result for your specific data problem context.
+
+3.  If nothing works, hit us up on [courses\@kossal.io](mailto:courses@kossal.io) and/or even raise an issue in [Stackoverflow](https://stackoverflow.com/), chances are that future analysts will have the same problem as you and will benefit from your post. Remember to include your objective, query and error message to facilitate the debugging task for us and other developers.
+
+## Contributing
+
+For know I maintain the website myself and it's very much a work in progress. Having said that, I would love if anybody wants to contribute and help. Send me an email to courses\@kossal.io if you're interested and I'll publish the github repo.
+
+## Acknowledgements
+
+Special thanks to the [Deal Engine](https://deal-engine.com/) team for giving us the opportunity to develop and teach this material, and for all the feedback to improve it.
+
+## Future work
+
+We're currently working on a similar site for **Scala**, **R** and **Python** so stay tuned or hit us up on [courses\@kossal.io](mailto:courses@kossal.io) to contribute.

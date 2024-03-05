@@ -1,0 +1,346 @@
+---
+title: "Groups, aggregations and sorting"
+description: "Learn to use the GROUP and SORT clauses in PostgreSQL to calculate aggregate metrics for a group of columns and order the results"
+date: "5/22/2021"
+date-modified: "5/23/2021"
+---
+
+## Aggregated metrics per group
+
+Now were getting into the fun stuff! Part of the analyst journey is to make sense of big datasets of information and summarize it into a few metrics. [Aggregate Function](1.1-select.qmd#aggregate-functions) had helped us previously to achieve this summary metrics but they seemed a little bit inconvenient taking into account that they collapsed the result set to a single row. Take for example:
+
+```sql
+select count(*) from "Track"
+```
+
+It's great to know how many tracks do we have in the database, but it's a little bit too summarized. Say that we want to know how many tracks do we have of each artists, the first approach would be to do something like this:
+
+```sql
+select count(*) from "Track" where "Composer" = 'AC/DC'
+```
+
+We would have to repeat it for every artists, it would a little bit of time don't you think? Another approach would be to use the `FILTER` clause like:
+
+```sql
+select
+    count(*) filter (where "Composer" = 'AC/DC') "AC/DC songs",
+    count(*) filter (where "Composer" = 'Jerry Cantrell') "Jerry Cantrell songs",
+    count(*) filter (where "Composer" = 'Audioslave') "Audioslave songs"
+from "Track"
+```
+
+Not great either. Luckily, SQL comes to the rescue with the `GROUP BY` clause, run the following query:
+
+```sql
+select
+    "Composer",
+    count(*)
+from "Track"
+group by "Composer"
+```
+
+Now we are talking! What happened is that we defined a **group** using the `GROUP BY` clause, this instructs PostgreSQL to calculate every aggregate function for every unique `"Composer"`. We could even not calculate any aggregated function and we would still receive the unique `"Composer"`s:
+
+```sql
+select "Composer" from "Track" group by "Composer"
+```
+
+> This is equivalent to using `DISTINCT` with the advantage of being able to calculate aggregate metrics
+
+### Sort results
+
+It was great to have the number of tracks per composer, but you know what would even be greater? If we could have the result set ordered by the number of tracks produced by each composer. We can use the `ORDER BY` clause:
+
+```sql
+select
+    "Composer",
+    count(*) "# Tracks"
+from "Track"
+group by "Composer"
+order by "# Tracks" desc nulls first
+```
+
+> If you define an alias column name like `"# Tracks"` then you must use that name if you want to refer to them in `GROUP BY` or `ORDER BY` clauses.
+
+> `desc` means descending order, by default Postgres uses `asc` which means ascending
+
+> `nulls first` sends any NULL result to the top, `nulls last` sends them to the bottom
+
+### Caution: combining aggregated and non aggregated columns
+
+Remember that if we use aggregate functions with groups, we're still collapsing results but to each unique element of the groups, so we cannot mix non aggregate columns with aggregated columns, to make it work we need to group the non aggregate columns. The following query does not work:
+
+```sql
+select
+    "Composer",
+    "UnitPrice",
+    count(*)
+from "Track"
+group by "Composer"
+```
+
+That's because `"UnitPrice"` is non aggregated while `count(*)` is, we would have to add `"UnitPrice"` to the `GROUP BY` clause to make it work:
+
+```sql
+select
+    "Composer",
+    "UnitPrice",
+    count(*)
+from "Track"
+group by "Composer", "UnitPrice"
+```
+
+Although the query works, it does something different than previous examples, that's because we're creating multiple groups:
+
+## Multiple groups
+
+Defining multiple columns to group instructs PostgreSQL to calculate aggregate metrics for any unique combination of values from those columns. For example, let's count the number of flights grouped by the departing airport and also it's fare condition:
+
+```sql
+select
+    ad.airport_name,
+    tf.fare_conditions,
+    count(*)
+from bookings.bookings b
+left join bookings.tickets t using (book_ref)
+left join bookings.ticket_flights tf using (ticket_no)
+left join bookings.flights f using (flight_id)
+left join bookings.airports_data ad on ad.airport_code = f.departure_airport
+where true
+    and b.book_date >= '2017-01-01'
+    and b.book_date <= '2017-02-01'
+    and f.status in ('Arrived', 'Scheduled')
+group by 1, 2
+order by 3 desc
+```
+
+> Instead of using the column name, we can use the column number in the `GROUP BY` and `ORDER BY` clauses. This is especially useful when we use multiple columns group or sort columns (we've used `GROUP BY` clauses with 19 columns in the past!)
+
+We can also ask which artist have the most playing time on all playlists:
+
+```sql
+select
+    p."Name",
+    at."Name",
+    sum(t."Milliseconds" / 1000) "Seconds",
+    count(*) "Tracks"
+from "Track" t
+inner join "Album" al using ("AlbumId")
+inner join "Artist" "at" using ("ArtistId")
+inner join "PlaylistTrack" plt using ("TrackId")
+inner join "Playlist" p using ("PlaylistId")
+group by 1, 2
+order by 3 desc
+```
+
+### Calculated groups
+
+Anything column can be grouped, even the result of a function, for example, if we wanted to calculate the flight average sales amount per month, we would first have to calculate the month using the booking date:
+
+```sql
+select
+    date_trunc('month', book_date) "Booking month",
+    avg(total_amount) "Avg Booking sale",
+    count(*) "# Bookings",
+    sum(total_amount) "Total sales"
+from bookings.bookings
+group by 1
+order by 1 asc
+```
+
+You can also use the `CASE WHEN` clause to create your own categories and group them. Let's create a category for tracks depending on their duration, say that if a song last for less then a minute we will consider it a short track, common track if it takes until 5 minutes, long track if it takes until ten minutes and long track if it takes more:
+
+```sql
+select
+    case
+        when "Milliseconds" < 1000 * 60 then '1. Short track'
+        when "Milliseconds" between 1000 * 60 and 1000 * 60 * 5 - 1 then '2. Common track'
+        when "Milliseconds" between 1000 * 60 * 5 and 1000 * 60 * 10 then '3. Long track'
+        else '4. Very long track'
+    end "Track type",
+    count(*) "# Tracks",
+    avg("Milliseconds" / 1000) "Avg seconds"
+from "Track"
+group by 1
+order by 1 asc
+```
+
+## Having
+
+You may have noticed that the `WHERE` clause goes before the `GROUP BY` clause, that's because the `WHERE` conditions are evaluated before any grouping operations. What happens if we want to filter results based on the aggregated metric? Then we'll use the `HAVING` clause. Let's do an example:
+
+```sql
+select
+    tf.ticket_no "Ticket Number",
+    sum(case when f.status in ('Cancelled', 'Delayed') then 1 else 0 end) "Cancelled or delayed flights",
+    count(*) "Flights"
+from bookings.ticket_flights tf
+inner join bookings.flights f using (flight_id)
+group by 1
+having true
+    and bool_or(f.status in ('Cancelled', 'Delayed'))
+    and not bool_and(f.status in ('Cancelled', 'Delayed'))
+```
+
+This example searches for tickets (group of flights from a unique passenger) where at least 1 of their flights were cancelled or delayed, but not all of them. The first thing that you can note is that the `HAVING` clause expects a boolean expression as the `WHERE` clause, the difference is that we use aggregate functions.
+
+## Grouping sets, rollup and cube
+
+As we saw previously, multiple column groups will be used to calculate aggregate metrics per unique combinations of the columns values, but PostgreSQL gives us options to control how these combinations are created. For example, say we want to calculate the sales of employees in different years and months, we could group it like this:
+
+```sql
+select
+    date_trunc('year', i."InvoiceDate") "Year",
+    date_trunc('month', i."InvoiceDate") "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by 1, 2, 3
+order by 1, 2, 3
+```
+
+The above query gives us exactly how much an employee sold in a specific month of a year, but what if we also want to calculate how much we sold on a given month, or given year in total? One way would be to create another query and reduce the number of grouped columns, but we have specific clauses to achieve what we want in a single query:
+
+### Grouping sets
+
+The `GROUPING SETS` clause allows us to define exactly on what groups will we perform aggregate functions:
+
+```sql
+select
+    to_char(i."InvoiceDate", 'yyyy') "Year",
+    to_char(i."InvoiceDate", 'mm-Mon') "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by grouping sets ((), (1), (1, 2), (1, 2, 3))
+order by 3 nulls first, 2 nulls first, 1 nulls first
+```
+
+To create a `GROUPING SET` we first open parenthesis and we define inside each grouping set separated by commas. Each set is contained inside parenthesis so `((), (1), (1, 2), (1, 2, 3))` means 4 grouping sets:
+
+1. `()`: means no grouping, so the aggregate function will be calculated for the entire dataset that we have retrieved (after the `JOIN` and `WHERE` clause have been evaluated). In the above example we'll observe a row that has NULL for `"Year"`, `"Month"` and `"Employee"` but a result for `"Sales"`, this means that `"Sales"` is the total sales of the dataset.
+
+2. `(1)`: means that we want to compute an aggregate function using the first column as a group (we can use the column name as well like in the first examples). We'll observe rows where we only have the different years and a value for sales. Those are the total sales of those years.
+
+3. `(1, 2)`: the same as before but we also group by the month.
+
+4. `(1, 2, 3)`: this computes the sales per employee per month and year.
+
+#### Rollup
+
+Certain `GROUPING SET`s are so common that we have PostgreSQL shorthands. `ROLLUP (1, 2, ...)` is a shorthand for `GROUPING SETS ((1, 2, ...), ..., (1, 2), (1), ())`. This is very useful for hierarchical information. The first grouping set example could be rewritten as:
+
+```sql
+select
+    to_char(i."InvoiceDate", 'yyyy') "Year",
+    to_char(i."InvoiceDate", 'mm-Mon') "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by rollup (1, 2, 3)
+order by 3 nulls first, 2 nulls first, 1 nulls first
+```
+
+#### Cube
+
+If we want to use all possible combinations of `GROUPING SET`s then we can use the `CUBE` clause in the form of:
+
+```sql
+CUBE ( 1, 2, 3 )
+```
+Is equivalent to:
+
+```sql
+GROUPING SETS (
+    ( a, b, c ),
+    ( a, b    ),
+    ( a,    c ),
+    ( a       ),
+    (    b, c ),
+    (    b    ),
+    (       c ),
+    (         )
+)
+```
+
+If we use it on the same example then before we'll calculate the total sales for any year, month, employee and all combinations from these.
+
+```sql
+select
+    to_char(i."InvoiceDate", 'yyyy') "Year",
+    to_char(i."InvoiceDate", 'mm-Mon') "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by cube (1, 2, 3)
+order by 3 nulls first, 2 nulls first, 1 nulls first
+```
+
+We may not want to calculate aggregate functions for `"Month"`, instead if we use the month we want it always to be accompanied by the year:
+
+```sql
+select
+    to_char(i."InvoiceDate", 'yyyy') "Year",
+    to_char(i."InvoiceDate", 'mm-Mon') "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by cube ("Year", ("Year", "Month"), "Employee")
+order by 3 nulls first, 2 nulls first, 1 nulls first
+```
+
+#### Combining groupings
+
+`GROUPING SET`s can be nested to achieve higher control, for example, we may not want to calculate the total sales of the entire dataset, so we force it to always use the `"Year"` as a grouping:
+
+```sql
+select
+    to_char(i."InvoiceDate", 'yyyy') "Year",
+    to_char(i."InvoiceDate", 'mm-Mon') "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by "Year", grouping sets ((), ("Month"), "Employee", ("Month", "Employee"))
+order by 3 nulls first, 2 nulls first, 1 nulls first
+```
+
+We can also force `"Employee"` to be the last grouping set:
+
+```sql
+select
+    to_char(i."InvoiceDate", 'yyyy') "Year",
+    to_char(i."InvoiceDate", 'mm-Mon') "Month",
+    concat_ws(' ', e."FirstName", e."LastName") "Employee",
+    sum(i."Total") "Sales"
+from "Invoice" i
+inner join "Customer" c using ("CustomerId")
+inner join "Employee" e on e."EmployeeId" = c."SupportRepId"
+group by "Year", cube(("Month")), "Employee"
+order by 3 nulls first, 2 nulls first, 1 nulls first
+```
+
+#### Note on communication
+
+Using complex `GROUPING SET`s can be a great analytical tool to create quick statistics or aggregate metrics, but avoid using them to communicate insights as it's very easy for stakeholders to get lost, especially because it gets hard to interpret the results. Remember that *analysis* and *communication* are 2 completely different challenges and uses distinct set of tools and skills.
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).
+
+1. Create a table with the favorite genres per customer based on the tracks that they bought (1 genre per customer).
+2. Create a table that shows the airports with the accumulated delays sorted by descending order.
+3. Who are the artist that have more play time?
+4. Count the number of bookings, passengers and total sales per year and month (consider using grouping sets).
+5. Calculate the total sales of each artist each week mentioned in the [cross join](1.3-join.qmd#cross-join) section.

@@ -1,0 +1,290 @@
+---
+title: "Filtering data"
+description: "Learn to use the WHERE clause and create search conditions in PostgreSQL to filter specific rows and return a subset of data that satisfies your conditions"
+date: "2/13/2024"
+date-modified: "2/13/2024"
+---
+
+Your now on the second section! Give yourself a pat and let's keep the flow running.
+
+Until know we have seen how to request information from hardcoded data and tables, but what happens if we only want a subset of that data? Imagine a database of flights, we may not want to analyze the whole table, instead we want to focus only on flights departing certain regions or dates. This is the objective of the `WHERE` clause, it's used to return rows that fulfill your specific conditions.
+
+> A **condition** must be an expression that returns a boolean value as we saw on the [SELECT boolean functions](1.1-select.qmd#boolean-functions) section. This condition will be evaluated for each row coming from the `FROM` clause, and only those rows that satisfy the condition will be returned. You can think of the `condition` as a `search_condition` used to find specific rows.
+
+The most basic `WHERE` queries are:
+
+```sql
+-- This will return 1 row with the value 1 because the condition is true
+select 1 where true;
+
+-- This will return NULL because the condition is false
+select 1 where false;
+```
+
+## Filter using one condition
+
+Now, hardcoding `TRUE` or `FALSE` in the `WHERE` clause is not very useful, so let's see how can we evaluate information from each row. Let's use the `bookings.flights` table, each row represents a flight that is scheduled, has already flown or has been cancelled. To search for flights that have arrived to their destination we can use the following query:
+
+```sql
+select *
+from bookings.flights
+where status = 'Arrived'
+```
+
+Another condition could be to find the first 100 rows:
+
+```sql
+select *
+from bookings.flights
+where flight_id <= 100
+```
+
+## Filter using multiple conditions
+
+Most times one condition is not enough for our search, luckily we have seen how we can concatenate conditions with the `AND` and `OR` clauses so let's use it. Say we want to find all flights that were cancelled and were planned to depart from the HMA airport:
+
+```sql
+select *
+from bookings.flights
+where departure_airport = 'HMA' and status = 'Cancelled'
+```
+
+We can combine what we've learn about [aggregate functions](1.1-select.html#aggregate-functions) to count the number of flights that have arrived to the LED airport and calculate the average arrival delay:
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - scheduled_arrival) "Average delay"
+from bookings.flights
+where true
+    and departure_airport = 'LED' 
+    and status = 'Arrived'
+    and actual_arrival is not null
+    and scheduled_arrival is not null
+```
+
+> To calculate the average delay we need a specific time on the `actual_arrival` and `scheduled_arrival`, knowing that both fields can have a `NULL` value, we avoid those rows by adding the `IS NOT NULL` condition on both columns
+
+> When using multiple conditions, we can increase readability by separating conditions with a newline. Additionally this let's us to comment specific conditions without having to modify other rows. We only have to a `TRUE` condition on top (we'll let you figure out why we need it)
+
+## Filtering dates
+
+We have already seen [functions to check conditions in dates](1.1-select.qmd#date-functions) so let's use them in an example. Say we want run the previous query but only for flights scheduled to arrive on the first month of 2017:
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - scheduled_arrival) "Average delay"
+from bookings.flights
+where true
+    and departure_airport = 'LED' 
+    and status = 'Arrived'
+    and actual_arrival is not null
+    and scheduled_arrival is not null
+    and scheduled_arrival >= '2017-01-01'
+    and scheduled_arrival < '2017-02-01'
+```
+
+We can also achieve the same result using the `BETWEEN` clause:
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - scheduled_arrival) "Average delay"
+from bookings.flights
+where true
+    and departure_airport = 'LED' 
+    and status = 'Arrived'
+    and actual_arrival is not null
+    and scheduled_arrival is not null
+    and (scheduled_arrival between '2017-01-01' and '2017-02-01')
+```
+
+Same but using the `date_trunc` function:
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - scheduled_arrival) "Average delay"
+from bookings.flights
+where true
+    and departure_airport = 'LED' 
+    and status = 'Arrived'
+    and actual_arrival is not null
+    and scheduled_arrival is not null
+    and date_trunc('month', scheduled_arrival) = '2017-01-01'
+```
+
+Another example but using the `INTERVAL` data type:
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - scheduled_arrival) "Average delay"
+from bookings.flights
+where true
+    and departure_airport = 'LED' 
+    and status = 'Arrived'
+    and actual_arrival is not null
+    and scheduled_arrival is not null
+    and scheduled_arrival >= '2017-01-01'
+    and scheduled_arrival < '2017-01-01'::date + interval '1 month'
+```
+
+> The `INTERVAL` clause creates a duration that if added or subtracted to a date or datetime, it will return another date or datetime
+
+These previous queries achieve the same results and this is a common feature of any language (programming or not), we generally have multiple ways of solving the same problem. 
+
+### Overlap
+
+Another date boolean function that is useful is the `OVERLAPS` clause, it allows you to find if two date ranges overlap. For example, let's find how many flights were on the air going to DME from 12:15 in the morning until 3 hours later (and calculate the average flight time):
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - actual_departure) "Avg flight time"
+from bookings.flights
+where true
+    and arrival_airport = 'DME'
+    and status = 'Arrived'
+    and (actual_departure, actual_arrival) overlaps ('2016-09-14 12:15:00', interval '3 hour')
+```
+
+### Moving dates
+
+Another common day-to-day query is to use a moving date window to find a specific dataset, for example we may want to create a metric that tracks how many flights has landed on a specific airport yesterday, this metric should return different results every day without us having to change the query:
+
+```sql
+select 
+    count(*) "# of flights",
+    avg(actual_arrival - scheduled_arrival) "Average delay"
+from bookings.flights
+where true
+    and departure_airport = 'LED' 
+    and status = 'Arrived'
+    and actual_arrival is not null
+    and scheduled_arrival is not null
+    and date_trunc('day', scheduled_arrival) = date_trunc('day', now()) - interval '1 day'
+```
+
+> The query won't return any results because the maximum `scheduled_arrival` goes until september 2017, try to change the `now()` clause to another date to get some result
+
+## Filtering using text
+
+Like date filtering, text filtering is another common day-to-day task and we have very simple to advanced text boolean functions at our disposal. Let's start simple and find `"Track"`s that are composed by Steven Tyler:
+
+```sql
+select *
+from "Track"
+where true
+    and "Composer" = 'Steven Tyler'
+```
+
+If you run this query you may be surprised to find no results, sorry for lying, if was not so simple after all! This does not mean that there are no Steven Tyler track, if you explore the table you'll find that they are no tracks where Steven Tyler is the solo composer, instead we only have tracks where he is a collaborator. This means that the `"Composer"` column always include other artist like `Steven Tyler, Jim Vallance`. Because we used an equality operator previously then no results were available, we'll have to use some function that let's use check if a subtext exists within a text, luckily we already saw the `LIKE` clause:
+
+```sql
+select *
+from "Track"
+where true
+    and "Composer" like '%Steven Tyler%'
+```
+
+The `LIKE` clause is a boolean function that allows us to verify if a subtext is contained in another text, the above example finds all rows were the `"Composer"` column includes Steven Tyler.
+
+The `%` operator means that we're matching 0 or more characters, by using it in the beginning and the end we're telling PostgreSQL that we expect Steven Tyler in any part of the text. We could have also used the `_` operator which matches 1 single character. If we did not use `_` or `%` then it is equivalent to using an equality operator. We could be more specific with our condition, only searching for songs where Steven Tyler is the main composer, for that we'll remove the first `%` operator:
+
+```sql
+select *
+from "Track"
+where true
+    and "Composer" ilike 'steven tyler%'
+```
+
+> The `ILIKE` clause is a case insensitive version of `LIKE`
+
+If we wanted to create a negative condition we can use the `NOT` clause, let's find all tracks that do not include Steven Tyler as a composer:
+
+```sql
+select *
+from "Track"
+where true
+    and "Composer" not ilike '%steven tyler%'
+```
+
+We'll cover more advanced text patterns conditions in the [REGEX](../2-advanced-queries/2.5-regex.qmd) section.
+
+## Filtering using list and arrays
+
+We can run conditions for arrays elements. For example the `"Composer"` column can be converted to a text array if we separated composers by `,`, and then check if it has at least one element:
+
+```sql
+select
+    string_to_array("Composer", ',')
+from "Track"
+where true
+    and 'Steven Tyler' = ANY(string_to_array("Composer", ','))
+```
+
+The `string_to_array` function creates a text array from a text by providing a separator. After that we use the `ANY` clause to check if at least one element of the array satisfies a condition (equal to Steven Tyler).
+
+Alternatively, we can also use the `ALL` clause which checks that all elements of an array is equal to something.
+
+### IN
+
+Imagine that we want to search for flights that depart from a list of airports, our first try may look like:
+
+```sql
+select *
+from bookings.flights
+where true
+    and departure_airport = 'LED' or departure_airport = 'GOJ' or departure_airport = 'KHV'
+```
+
+This can be quite cumbersome and difficult to read, especially when the list grows. PostgreSQL provides the `IN` clause especially for these cases:
+
+```sql
+select *
+from bookings.flights
+where true
+    and departure_airport in ('LED', 'GOJ', 'KHV')
+```
+
+> We can also use the `NOT IN` if we want to find the rows that do not depart from LED, GOJ or KHV.
+
+## Filter clause
+
+Say we want to calculate an aggregated metric but using different conditions for each metric, we can leverage the `CASE` clause to achieve this. Let's create an example where we count flights departing from 3 different airports:
+
+```sql
+select
+    count(*) "All flights",
+    sum(case when departure_airport = 'LED' then 1 else 0 end) "Flights departing LED",
+    sum(case when departure_airport = 'GOJ' then 1 else 0 end) "Flights departing GOJ",
+    sum(case when departure_airport = 'KHV' then 1 else 0 end) "Flights departing KHV"
+from bookings.flights
+```
+
+Although it works it's quite difficult to read and also cumbersome, instead we could leverage the `FILTER` clause, which let's us calculate an aggregate function while performing a `WHERE` clause for that specific metric:
+
+```sql
+select
+    count(*) "All flights",
+    count(*) filter (where departure_airport = 'LED') "Flights departing LED",
+    count(*) filter (where departure_airport = 'GOJ') "Flights departing GOJ",
+    count(*) filter (where departure_airport = 'KHV') "Flights departing KHV"
+from bookings.flights
+```
+
+## Final thoughts
+
+This page contains multiple examples of clauses and functions that we can use in the `WHERE` clause, but it's far from exhaustive. At the end of the day the `WHERE` condition has to return a boolean value so we can use any combination of functions that returns boolean values. Check the PostgreSQL documentation to improve your tool set.
+
+## Exercises
+
+Solve them in the [query editor](../query-editor.html).
+
+1. Return all of the Airports that uses a European timezone.
+2. Find all seats that are of type Economy.
+3. Return all Tracks that have no composer.
+4. Return all Tracks that last more then 5 minutes and takes more then 7MB of storage.
+5. Find all flights that had an arrival/departure delay of more then 15 minutes or arrival/departure of more then 5 minutes before it's schedule.
