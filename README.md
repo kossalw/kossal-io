@@ -7,6 +7,16 @@ This is the public repository for the online book Data Analysis in PostgreSQL. T
 3. The **kubernetes** folder defines helm charts, values and container files for deployment into a kubernetes cluster.
 4. The **bin** folder defines bash scripts used to deploy to the kubernetes cluster.
 
+# Static
+
+You'll need to install [quarto](https://quarto.org/docs/websites/), the easiest option is to use [VS Code quarto plugin](https://quarto.org/docs/tools/vscode.html) which will install quarto globally and allow preview.
+
+# Query editor
+
+We used [mill](https://mill-build.com/mill/Intro_to_Mill.html) as the build tool for [Scala 3](https://www.scala-lang.org/) modules. You'll also need to install java, we recommend to use [coursier](https://get-coursier.io/) to install and manage java versions.
+
+Use `bin/devserver` to compile the modules and spin up a locahost web server at [http://localhost:8080/](http://localhost:8080/). Right now it does not have support for hot reload so feel free to contribute if you feel daring. (I'd recommend using [vite](https://www.scala-js.org/doc/tutorial/scalajs-vite.html)).
+
 # Deploying
 
 We use [kubernetes](https://kubernetes.io/) and [helm](https://helm.sh/) to manage three deployments:
