@@ -4,25 +4,38 @@ set -e
 
 # Function to kill background processes
 cleanup() {
-  echo "Killing main server and web processes"
+  echo "Killing server, web and vite processes"
   [[ -n $PID1 ]] && kill $PID1
   [[ -n $PID2 ]] && kill $PID2
+  [[ -n $PID3 ]] && kill $PID3
   exit 0
 }
 
 # Trap SIGINT (Ctrl+C) and SIGTERM
 trap cleanup SIGINT SIGTERM
 
+# Install npm modules
+npm install
+
 # Start the compilation process
-mill api.compile
+mill -j 0 {web,server}.compile
+
+# Build the javascript the first time
+mill -j 0 web.fastLinkJS
 
 # Run the main server in the background and capture its PID
-mill -w api.runMain com.kossalw.api.MainServer &
+mill -w -j 0 api.runMain com.kossalw.api.MainServer &
 PID1=$!
+sleep 2
 
 # Run the web optimization in the background and capture its PID
-mill -w web.fastOpt &
+npm run dev &
 PID2=$!
 
+# Enable web re-building of js after vite is on
+sleep 2
+mill -w -j 0 web.fastLinkJS &
+PID3=$!
+
 # Wait for any of the background processes to finish
-wait $PID1 $PID2
+wait $PID1 $PID2 $PID3

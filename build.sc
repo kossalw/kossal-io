@@ -1,4 +1,8 @@
-import mill._, scalalib._, scalajslib._
+import mill._
+import mill.define.Task
+import mill.scalalib._
+import mill.scalajslib._
+import mill.scalajslib.api._
 
 object DotEnvModule {
 
@@ -86,23 +90,37 @@ object shared extends Module {
 }
 
 object web extends AppScalaJSModule {
-  def scalaJSVersion = "1.15.0"
+  def scalaJSVersion = "1.16.0"
 
   def moduleDeps = Seq(shared.js)
+
+  def moduleKind = ModuleKind.ESModule
+  def moduleSplitStyle = ModuleSplitStyle.SmallModulesFor(List("com.kossalw.web"))
+
+  def publicDev = T {
+    public(fastLinkJS)()
+  }
+
+  def publicProd = T {
+    public(fullLinkJS)()
+  }
+
+  // This will output a JSON while using mill show and we'll use it to alias to
+  // import { main } from "@public/main.js"
+  def public(jsTask: Task[Report]): Task[Map[String, os.Path]] = T.task {
+    Map("@public" -> jsTask().dest.path)
+  }
 
   override def ivyDeps = Agg(
     ivy"org.scala-js::scalajs-dom::2.8.0",
     ivy"com.raquo::laminar::16.0.0",
     ivy"com.raquo::airstream::16.0.0",
-    ivy"io.laminext::fetch::0.16.2",
     ivy"com.lihaoyi::upickle::3.2.0",
     ivy"com.lihaoyi::ujson::3.2.0"
   )
 }
 
 object api extends AppScalaModule with DotEnvModule {
-  override def generatedSources = super.generatedSources() ++ Seq(web.fastOpt())
-
   def moduleDeps = Seq(shared.jvm)
 
   override def ivyDeps = Agg(

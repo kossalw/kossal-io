@@ -2,19 +2,16 @@
 
 set -e
 
-# Remove _site cache
-rm -rf ./_site
-
 # Render html to _site
+rm -rf ./_site
 quarto render static --to html --output-dir ../_site
 
-# Copy query editor base HTML file
-cp ./api/resource/index.html ./_site/query-editor.html
+# Build query editor and copy files
+rm -rf ./dist
+npm run build
 
-# Copy query editor base HTML file
-mill web.fullLinkJS
-cp ./out/web/fullLinkJS.dest/main.js ./_site/query-editor.js
-cp ./out/web/fullLinkJS.dest/main.js.map ./_site/query-editor.js.map
+cp ./dist/index.html ./_site/query-editor.html
+cp ./dist/assets/*.js ./_site/assets/
 
 # Import env
 export $(cat .env | sed 's/#.*//g' | xargs)

@@ -7,6 +7,7 @@ import org.scalajs.dom
 import dom.html
 
 import com.kossalw.shared.Metabase.*
+import com.kossalw.web.helper.EventStreamExt
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.*
@@ -95,8 +96,7 @@ object TodoApp {
           _.body(state.query),
           _.abortStream(queryCancelBus.events)
         )
-        .recoverToTry
-        .map {
+        .recoverToCollect {
           case Success(result) => Some(result)
           case Failure(error) if error.getMessage().contains("AbortError") =>
             dom.console.log("The user aborted a request")
@@ -106,8 +106,6 @@ object TodoApp {
             dom.console.error(error)
             None
         }
-        .filter(_.isDefined)
-        .map(_.get)
     }
     .map { response =>
       val resultColumns: Try[Seq[Column]] =
@@ -122,6 +120,13 @@ object TodoApp {
       )
 
       UpdateQueryResult(result)
+    }
+    .recoverToCollect {
+      case Success(result) => Some(result)
+      case Failure(error) =>
+        dom.console.log("Failed request due to:")
+        dom.console.error(error)
+        None
     }
 
   // Database navigator management
@@ -569,6 +574,7 @@ object TodoApp {
     tableResult
   )
 
+  @JSExportTopLevel("main")
   def main(args: Array[String]): Unit = {
     render(dom.document.getElementById("root"), app)
   }
