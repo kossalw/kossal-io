@@ -2,22 +2,152 @@
 title: "Working with JSON and XML data"
 description: "Learn to query directly keys, values and attributes of JSON and XML data in PostgreSQL"
 date: "2/13/2024"
-date-modified: "2/13/2024"
+date-modified: "4/02/2024"
 ---
-
-# Currently in DRAFT
 
 ## What is JSON?
 
+[JSON](https://www.json.org/json-en.html) is a standard way of storing data that imitates the javascript object notation (you don't need to know anything about javascript to work with JSON). It basically defines **collections** and **data types**.
+
+### JSON Collections
+
+They are 3 types of data types:
+
+An **Object** is a collection of key-value pairs, you can think of the key as the name of a variable and it stores a value:
+
+```json
+{
+    "key1": "Hello",
+    "key2": "World"
+}
+```
+
+> This JSON has 1 object with 2 key-value pairs. `key1` stores the text value `Hello`.
+
+> Objects need to start and end with curly braces `{}`.
+
+> Keys need to be double quoted `""` but only text values need to be double quoted. Key-value pairs are separated with commas `,`.
+
+JSON allows for collection nesting so the value of a key can be another object:
+
+```json
+{
+    "name": {
+        "first": "John",
+        "last": "Doe"
+    }
+    "date_of_birth": "1997-01-01"
+}
+```
+
+> The value of `name` is another object that also has it's key-value pairs.
+
+An **array** which is a collection of values of any type (even objects):
+
+```json
+[
+    1,
+    "Angus Young",
+    {
+        "name": {
+            "first": "John",
+            "last": "Doe"
+        }
+        "date_of_birth": "1997-01-01"
+    }
+]
+```
+
+> Arrays starts and ends with `[]`. Values inside an array are separated with commas `,`.
+
+### JSON Values
+
+JSON basically only has four data types (strings, numbers, booleans and null):
+
+```json
+{
+    "string": "Hello", // Strings need to be double quoted,
+    "integer": 1,
+    "number_with_decimals": 1.04,
+    "negative_numbers": -1.04,
+    "exponential_numbers": 5.4e10,
+    "boolean1": true,
+    "boolean2": false,
+    "missing_value": null
+}
+```
+
+### JSON in PostgreSQL
+
+JSON data can be stored in PostgreSQL databases in three data types:
+
+- **text**: we can store the JSON text directly on a column.
+- **json**: it's essentially text but with two advantages. On INSERT and UPDATE PostgreSQL will verify that the structure of the JSON text is valid, raising and error if not. Also it allows us to use special operators to find information in our JSON. We can transform a text to JSON by using casting function (`text_column::json`)
+- **jsonb**: it's the same as JSON but instead of storing it as text, it stores it in binary format, achieving some performance and memory improvements.
+
+Now let's do some queries, if you fetch the `misc.book` table you'll find that each row is a book but most of it's data is stored on the column `book_data` in JSON format:
+
+```sql
+select * from misc.book b
+```
+
+We can extract the `->` operator to fetch values inside the JSON. For an object we can use the keys to fetch their values:
+
+```sql
+select
+	title,
+	book_data "JSON",
+    book_data->'title' "JSON Title",
+	book_data->'authors' "Authors",
+    book_data->'not_existing_key' "Not existing key column"
+from misc.book
+```
+
+We returned the title value (which is a string), the authors (which returns an array) and tried to find a key that does not exists for which PostgreSQL will return NULL. Take note that the `->` operator always returns another JSON, so although the `JSON Title` column looks like a text, is in reality a JSON. To transform a JSON value to a text, number or boolean we need to use the `->>` operator:
+
+```sql
+select
+	title,
+	book_data "JSON",
+    book_data->>'title' "JSON Title",
+    book_data->>'id' "JSON ID",
+	book_data->>'authors' "Authors"
+from misc.book
+```
+
+Now the title is a text column, the ID is a integer column, the authors array has also been transformed to a text. For the title and id column this operator works great but for the authors column is not so great because has a text we cannot use JSON operators. For example, let's say we want to capture the first, second and last authors date of birth:
+
+
+```sql
+select
+	title,
+	book_data->>'authors' "JSON Authors",
+	book_data->'authors'->0->>'birth_year' "First author birth date",
+	book_data->'authors'->1->>'birth_year' "Second author birth date",
+	book_data
+		->'authors'
+		->(json_array_length(book_data->'authors') - 1)
+		->>'birth_year' "Last author birth date"
+from misc.book
+where true 
+	and json_array_length(book_data->'authors') >= 3
+```
+
+For arrays we cannot use a key name, so we use the index of the element inside the array starting with 0. So `book_data->'authors'->0` finds the first author. Note that for JSONs we have access to multiple functions like `json_array_length` which returns the number of elements inside a JSON array, which is convenient to filter and even to find the last item of a dynamic size array.
+
+For deeply nested data we can find ourselfs using the `->` multiple times complicating readability. For that we have the `#>` and `#>>` operators:
+
+```sql
+select
+	title,
+    -- Equivalent to book_data->'authors'->0
+	book_data#>'{authors, 0}' "JSON Main author",
+     -- Equivalent to book_data->'authors'->0->>'birth_year'
+	book_data#>>'{authors, 0, birth_year}' "Main author birth date"
+from misc.book
+```
+
 ## What is XML?
-
-## Check the column type
-
-## Fetch nodes, keys, values and attributes
-
-### Common functions
-
-#### JSON & XML set returning functions
 
 ## Exercises
 

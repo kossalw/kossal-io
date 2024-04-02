@@ -2,10 +2,10 @@
 title: "Selecting data"
 description: "Learn to use the SELECT clause in PostgreSQL to fetch hardcoded data or stored information from tables"
 date: "2/13/2024"
-date-modified: "2/13/2024"
+date-modified: "4/02/2024"
 ---
 
-Let's assume that you have already have a postgresql client connected to the sample database, let's begin by learning how to fetch information from it. First of all, PostgreSQL implements the SQL communication standard, that means that you can send commands to PostgreSQL through an SQL-like language. No engine implements the SQL protocol perfectly and PostgreSQL is no exception, it has it's own flavor of SQL and we'll learn to use it in the following lessons. Onwards, whenever we use the term **SQL** it means the PostgreSQL version of SQL instead of the SQL standard.
+Let's begin by learning how to fetch information from it. First of all, PostgreSQL implements the SQL communication standard, that means that you can send commands to PostgreSQL through an SQL-like language. No engine implements the SQL protocol perfectly and PostgreSQL is no exception, it has it's own flavor of SQL and we'll learn to use it in the following lessons. Onwards, whenever we use the term **SQL** it means the PostgreSQL version of SQL instead of the SQL standard.
 
 SQL is a language that allows us to communicate to the PostgreSQL server and request it to do something, in this website we focus on the task of requesting information formatted in a specific manner, so we'll not cover commands that are used to create, delete or modify data or any database elements like creating tables, users or other. That means that the commands we'll learn will not modify anything, only return data. Onwards when we refer to a **query** statement we are referring to the act of requesting PostgreSQL to return some data through a command statement.
 
@@ -361,7 +361,7 @@ select t.ticket_no from bookings.tickets as t
 
 ### Select from a Set Returning Function
 
-Some functions let you create virtual tables that can be selected from, for example, the `GEN_SERIES` function let's you create a sequence of dates, timestamps or numbers:
+Some functions let you create virtual tables that can be selected from, for example, the `generate_series` function let's you create a sequence of dates, timestamps or numbers:
 
 ``` sql
 select 
@@ -420,7 +420,7 @@ select bool_or("UnitPrice" > 0.5) from "Track";
 
 Because aggregate functions forces a single row result, our `SELECT` statement must return 1 single row for every column that we specify. The following example does not work because the `count` function wants to return 1 row, but the `"UnitPrice"` statement would return multiple rows:
 
-``` sql
+```sql
 select count(*), "UnitPrice" from "Track"
 ```
 
@@ -429,6 +429,17 @@ That does not mean that we cannot combine normal functions with aggregate functi
 ```sql
 select count(*), sum("Milliseconds" / 1000) from "Track"
 ```
+
+### Unnest
+
+We have seen how arrays are collections of other data types like text, numbers or others. In some ocasions we want to work with the elements of the array as if they were in their own row, so we can use the set generating function of `unnest`:
+
+```sql
+select unnest(string_to_array("Composer", ','))
+from "Track"
+```
+
+The `string_to_array` takes the `"Composer"` text and creates an array of composers separated by a `,`. After that, `unnest` creates a row for each element of the array.
 
 ## Unique values
 

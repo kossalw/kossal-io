@@ -2,7 +2,7 @@
 title: "Subqueries"
 description: "Learn to use subqueries, recursive and non-recursive CTEs, virtual tables, and lateral joins in PostgreSQL to create complex and structured queries"
 date: "2/13/2024"
-date-modified: "2/14/2024"
+date-modified: "4/02/2024"
 ---
 
 Congratulations for passing the basic queries section! Even without knowing any advance methods you've learn very powerful tools that will empower you to leverage your database data. But why stop here? Let's go from good to incredible.
@@ -250,7 +250,7 @@ If you run it you'll find that it creates a numeric series from 1 until 9. The s
 Recursive queries are especially useful when you have a table with a value that references itself. Let's imagine we have a table with persons and their parent ids, we could fetch the entire family of one member with:
 
 ```sql
-with sample_data as (
+with recursive sample_data as (
     SELECT * FROM (
         VALUES 
             (1, 'George', NULL, NULL),
@@ -260,22 +260,43 @@ with sample_data as (
             (5, 'Agusto', 4, NULL),
             (6, 'Sara', NULL, 3)
     ) AS t (id, name, father_id, mother_id)
+), sara_family as (
+    select * from sample_data where name = 'Sara'
+    union all
+    select sd1.*
+    from sample_data sd1
+    join sara_family sf on sf.father_id = sd1.id or sf.mother_id = sd1.id
 )
-select * from (
-    with recursive sara_family as (
-        select * from sample_data where name = 'Sara'
-        union all
-        select sd1.*
-        from sample_data sd1
-        join sara_family sf on sf.father_id = sd1.id or sf.mother_id = sd1.id
-    )
-    select * from sara_family
-) as x
+select * from sara_family
 ```
 
 > `VALUES` is a clause that is very useful to create data, is equivalent to multiple `SELECT` statements united by `UNION ALL`s
 
 > To edit the column names of the `VALUES` result we use `AS t (id, name, father_id, mother_id)`
+
+> We can mix recursive CTE with non-recursive CTE, the `sample_data` CTE is not actually recursive, only `sara_family` is
+
+Let's take the `company.employees` table, for each employee we also have his manager using the column `manager_id` so we could find the hierarchy for a particular employee:
+
+```sql
+with recursive william_lineage as (
+	select
+		employee_id "Id",
+		manager_id "Manager Id",
+		first_name "Name",
+		1 "Level"
+	from company.employees where employee_id = 206
+	union
+	select
+		e.employee_id "Id",
+		e.manager_id "Manager Id",
+		e.first_name "Name",
+		l."Level" + 1 "Level"
+	from company.employees e
+	join william_lineage l on l."Manager Id" = e.employee_id
+)
+select * from william_lineage
+```
 
 ## Exercises
 
@@ -298,4 +319,5 @@ order by 2 desc
 ```
 
 2. Find all tickets with at least 1 canceled flight in business class.
-3. Recursively calculate the accumulated percentage sale of each billing country that represents at least 10% of total sales. This accumulated percentage should equal 100% at then end.
+3. Find the whole hierarchy of managers and underlinks of employee 114 (use the `company.employees` table)
+4. Recursively calculate the accumulated percentage sale of each billing country that represents at least 10% of total sales. This accumulated percentage should equal 100% at then end.
