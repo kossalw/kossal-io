@@ -26,8 +26,8 @@ object MainServer extends ZIOAppDefault {
     eff: MetabaseService => Task[B]
   ): URIO[EnvironmentConfig & MetabaseService, Response] =
     for {
-      env <- ZIO.environment[EnvironmentConfig].map(_.get[EnvironmentConfig])
-      metabaseService <- ZIO.environment[MetabaseService].map(_.get[MetabaseService])
+      env <- ZIO.service[EnvironmentConfig]
+      metabaseService <- ZIO.service[MetabaseService]
       response <- ZIO.unit.flatMap(_ => eff(metabaseService)).either.flatMap {
         case Right(result)                           => ZIO.succeed(Response.json(write[B](result)))
         case Left(error) if env.environment == "DEV" => ZIO.succeed(Response.text(error.getMessage))
@@ -49,7 +49,7 @@ object MainServer extends ZIOAppDefault {
       },
       Method.POST / "api" / "query" -> Handler.fromFunctionZIO { (req: Request) =>
         for {
-          metabaseService <- ZIO.environment[MetabaseService].map(_.get[MetabaseService])
+          metabaseService <- ZIO.service[MetabaseService]
           response <- req.body.asString.flatMap(metabaseService.runQuery).either.flatMap {
             case Right(result) => ZIO.succeed(Response.json(result))
             case Left(error) =>

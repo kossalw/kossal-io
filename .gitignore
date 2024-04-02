@@ -5,6 +5,7 @@
 
 /.quarto/
 /_site/
+/static/_site/
 /cache/
 
 .DS_Store

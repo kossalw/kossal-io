@@ -10,7 +10,9 @@ case class EnvironmentConfig(environment: String)
 
 object AppConfig {
   private val environmentLayer: TaskLayer[EnvironmentConfig] =
-    ZLayer.fromZIO(ZIO.attemptUnsafe(_ => EnvironmentConfig(sys.env("ENVIRONMENT"))))
+    ZLayer {
+      ZIO.attemptUnsafe(_ => EnvironmentConfig(sys.env("ENVIRONMENT")))
+    }
 
   // ** Metabase **
   // To create a MetabaseService we need to follow this steps:
@@ -20,13 +22,15 @@ object AppConfig {
   // 4. Create an MetabaseEnv that we'll use to create a MetabaseServiceImpl
   // 5. Convert the MetabaseServiceImpl to MetabaseService
   private val metabaseConfigLayer: TaskLayer[MetabaseConfig] =
-    ZLayer.fromZIO(ZIO.attemptUnsafe { _ =>
-      MetabaseConfig(
-        host = sys.env("METABASE_API_HOST"),
-        user = sys.env("METABASE_USER"),
-        password = sys.env("METABASE_PASSWORD")
-      )
-    })
+    ZLayer {
+      ZIO.attemptUnsafe { _ =>
+        MetabaseConfig(
+          host = sys.env("METABASE_API_HOST"),
+          user = sys.env("METABASE_USER"),
+          password = sys.env("METABASE_PASSWORD")
+        )
+      }
+    }
 
   private val metabaseBackend: TaskLayer[SttpClient] =
     HttpClientZioBackend.layer()
@@ -36,7 +40,7 @@ object AppConfig {
     Nothing,
     MetabasePool
   ] =
-    ZLayer.fromZIO {
+    ZLayer {
       for {
         tokens <- Ref.make(Set.empty[MetabaseToken])
 
@@ -50,7 +54,6 @@ object AppConfig {
         env <- ZIO.environment[MetabaseConfig & SttpClient]
         _ = scala.sys.addShutdownHook {
           Unsafe.unsafe { implicit unsafe =>
-            pprint.pprintln(tokens)
             for {
               _ <- Runtime.default.unsafe.run(logoutAllTokens.provideEnvironment(env))
             } yield ()

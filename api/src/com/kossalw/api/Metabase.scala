@@ -45,13 +45,13 @@ type MetabaseEnv = MetabaseConfig & SttpClient & MetabasePool
 
 // The Metabase object holds helper functions
 object Metabase {
-  val extractConfig = ZIO.environment[MetabaseConfig].map(_.get[MetabaseConfig])
+  val extractConfig = ZIO.service[MetabaseConfig]
   val extractHost = extractConfig.map(_.host)
   private val extractUser = extractConfig.map(_.user)
   private val extractPassword = extractConfig.map(_.password)
 
-  val extractBackend = ZIO.environment[SttpClient].map(_.get[SttpClient])
-  val extractPool = ZIO.environment[MetabasePool].map(_.get[MetabasePool])
+  val extractBackend = ZIO.service[SttpClient]
+  val extractPool = ZIO.service[MetabasePool]
 
   def manageResponse[A, E](response: Response[Either[E, A]]): Task[A] =
     if (response.code.code == 401)
@@ -90,28 +90,38 @@ object Metabase {
       _ = println("Tried to logout Metabase token")
     } yield ()
 
-  def useSession[A, E](request: SttpRequest[A, E]): RIO[SttpClient & MetabasePool, A] = {
-    val effect = ZIO.scoped {
-      for {
-        token <- extractPool.flatMap(_.get)
-        authenticatedRequest = request(
-          basicRequest.contentType("application/json").header("X-Metabase-Session", token.id)
-        )
-        backend <- extractBackend
-        result <- authenticatedRequest
+  def sendAuthenticatedRequest[A, E](request: SttpRequest[A, E], token: MetabaseToken): RIO[SttpClient, A] =
+    extractBackend
+      .flatMap { backend =>
+        request(basicRequest.contentType("application/json").header("X-Metabase-Session", token.id))
           .send(backend)
-          .flatMap(manageResponse)
+      }
+      .flatMap(manageResponse)
+
+  def useSession[A, E](request: SttpRequest[A, E]): RIO[SttpClient & MetabasePool, A] =
+    ZIO.scoped {
+      for {
+        pool <- extractPool
+        token <- pool.get
+        result <- sendAuthenticatedRequest(request, token).either.flatMap {
+          case Right(value) => ZIO.succeed(value)
+          case Left(e: MetabaseInvalidToken) =>
+            for {
+              _ <- Console.printLineError("Received 401, try to login again").ignoreLogged
+              _ <- pool.invalidate(token)
+              newToken <- pool.get
+              newResult <- sendAuthenticatedRequest(request, newToken).either.flatMap {
+                case Right(value) => ZIO.succeed(value)
+                case Left(e: MetabaseInvalidToken) =>
+                  Console.printLineError("Received 401 after retrying to login").ignoreLogged *>
+                    ZIO.fail(e)
+                case Left(e) => ZIO.fail(e)
+              }
+            } yield newResult
+          case Left(e) => ZIO.fail(e)
+        }
       } yield result
     }
-
-    effect.either.flatMap {
-      case Right(value) => ZIO.succeed(value)
-      case Left(e: MetabaseInvalidToken) =>
-        println("Received 401, try to login again:")
-        effect
-      case Left(e) => ZIO.fail(e)
-    }
-  }
 
   def useSessionWithHost[A, E](requestWithHost: String => SttpRequest[A, E]): RIO[MetabaseEnv, A] =
     extractHost.flatMap(host => useSession(requestWithHost(host)))
