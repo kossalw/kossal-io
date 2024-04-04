@@ -2,12 +2,12 @@
 title: "Working with JSON and XML data"
 description: "Learn to query directly keys, values and attributes of JSON and XML data in PostgreSQL"
 date: "2/13/2024"
-date-modified: "4/02/2024"
+date-modified: "4/04/2024"
 ---
 
 ## What is JSON?
 
-[JSON](https://www.json.org/json-en.html) is a standard way of storing data that imitates the javascript object notation (you don't need to know anything about javascript to work with JSON). It basically defines **collections** and **data types**.
+[JavaScript Object Notation](https://www.json.org/json-en.html) or JSON is a standard way of storing data that imitates the javascript object notation (you don't need to know anything about javascript to work with JSON). It basically defines **collections** and **data types**.
 
 ### JSON Collections
 
@@ -135,7 +135,7 @@ where true
 
 For arrays we cannot use a key name, so we use the index of the element inside the array starting with 0. So `book_data->'authors'->0` finds the first author. Note that for JSONs we have access to multiple functions like `json_array_length` which returns the number of elements inside a JSON array, which is convenient to filter and even to find the last item of a dynamic size array.
 
-For deeply nested data we can find ourselfs using the `->` multiple times complicating readability. For that we have the `#>` and `#>>` operators:
+For deeply nested data we can find ourselves using the `->` multiple times complicating readability. For that we have the `#>` and `#>>` operators:
 
 ```sql
 select
@@ -147,8 +147,342 @@ select
 from misc.book
 ```
 
+There're many more PostgreSQL [functions to work with JSON](https://www.postgresql.org/docs/9.5/functions-json.html), we're going to leave here some of the most commons:
+
+### Common JSON functions
+
+For most JSON functions they'll be the same JSONB function, most times you only have to add the `b` and use `jsonb` in the function name:
+
+```sql
+select
+	-- Returns "'a", which is JSON valid
+	to_json('''a'::text),
+	-- Returns the value or collection type of a JSON value
+	json_typeof(to_json('''a'::text))
+;
+
+-- Build valid JSON array from a Postgres array
+select array_to_json(string_to_array("Composer", ','))  from "Track";
+
+-- Expands a JSON object key-value pairs to their own row
+-- similar to how unnest works
+select
+	b.title,
+	f.format,
+	f.link
+from misc.book b
+-- When using the AS clause, we can also define the name of the columns
+join json_each(b.book_data->'formats') as f (format, link) on true
+;
+
+-- json_each works great but you'll see that the returned type of link
+-- is a JSON value, which makes sense as it could be anything.
+-- If we are sure that the value is a text, we can use json_each_text
+select
+	b.title,
+	f.format,
+	f.link
+from misc.book b
+-- When using the AS clause, we can also define the name of the columns
+join json_each_text(b.book_data->'formats') as f (format, link) on true
+;
+
+-- json_object_keys is the same as json_each but will only return the keys
+select
+	b.title,
+	f.format
+from misc.book b
+join json_object_keys(b.book_data->'formats') as f (format) on true
+;
+
+-- json_array_elements is for arrays what json_each is for objects
+select
+	b.title,
+	a.value "JSON of author",
+	author.author_detail "Key of individual author",
+	author.value "Value of individual key"
+from misc.book b
+join json_array_elements(b.book_data->'authors') as a (value) on true
+join json_each(a.value) as author (author_detail, value) on true
+;
+```
+
+### Common JSONB functions
+
+JSONB has some unique functions that the JSON type does not have, particularly due to the advantages of working with binary data instead of text has in some situations:
+
+```sql
+select
+	title,
+	book_data,
+	-- The ? operator checks that right key exists in the
+	-- left JSONB object
+	book_data::jsonb ? 'authors',
+	book_data::jsonb ? 'not_existing_key',
+	-- ?| works as ? but checks if at least 1 key in the right
+	-- exists in the left JSONB object. Similar to how IN works
+	book_data::jsonb ?| array['authors', 'not_existing_key'],
+	-- ?& is the same as ?| but for JSON arrays
+	book_data::jsonb->'languages' ?& array['en']
+from misc.book b
+;
+
+-- The @> operator checks that the right JSONB is contained inside
+-- the left JSONB
+select
+	title,
+	book_data
+from misc.book b 
+-- We need to transform book_data from JSON to JSONB to
+-- use the @> operator
+where book_data::jsonb @> '{"id": 84}'
+;
+
+-- Containment can also be checked for arrays, the subject
+-- array must at least contain horror tales and science fiction
+select
+	title,
+	book_data
+from misc.book b
+-- This is similar to the ?& operator
+where book_data::jsonb @> '{"subjects": ["Horror tales", "Science fiction"]}'
+;
+```
+
+
 ## What is XML?
+
+[Extensible Markup Language](https://www.w3.org/XML/) or XML is another standard way of storing information but instead of using a syntax similar to JavaScript objects, it uses brackets, elements and attributes.
+
+```xml
+<catalog>
+   <book id="bk101" available>
+      <author>Gambardella, Matthew</author>
+      <title>XML Developer's Guide</title>
+      <genre>Computer</genre>
+      <price>44.95</price>
+      <publish_date>2000-10-01</publish_date>
+      <description>An in-depth look at creating applications 
+      with XML.</description>
+   </book>
+   <book id="bk102" available>
+      <author>Ralls, Kim</author>
+      <title>Midnight Rain</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2000-12-16</publish_date>
+      <description>A former architect battles corporate zombies, 
+      an evil sorceress, and her own childhood to become queen 
+      of the world.</description>
+   </book>
+   <book id="bk103" out_of_stock>
+      <author>Corets, Eva</author>
+      <title>Maeve Ascendant</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2000-11-17</publish_date>
+      <description>After the collapse of a nanotechnology 
+      society in England, the young survivors lay the 
+      foundation for a new society.</description>
+   </book>
+</catalog>
+```
+
+- XML elements are enclosed in brackets `<catalog>` and must end with `</catalog>` at some point
+- Values are stored between the XML elements, which can be other XML elements or strings (no need for quotations)
+- XML elements can have attributes, which is data inside the brackets like `id="bk101"``
+- Attributes can reference some value `id="bk101"`` or not reference anything `available`
+
+### XML in Postgres
+
+PostgreSQL allows storing XML as text or in xml type, as you can imagine the xml type validates that the text is actually valid and offers us functions that we can use to work with it. The main function that we'll use is `xpath`, which is a reference to the [XPath](https://www.w3schools.com/xml/xpath_intro.asp) standard, which is used to point to specific elements inside XML documents.
+
+```sql
+select
+	country_name,
+	country_data,
+	xpath('/country/name', country_data) "Name elements",
+	xpath('count(/country/name)', country_data) "# of Name elements",
+from misc.country c
+```
+
+> '/country/name' looks for the root element `country` and then it's child element `name`
+
+> Because elements can be repeated to create a list, xpath returns a collection of XML elements, each pointing to a element `name`
+
+> XPath can use functions like count() to count the number of elements found, but the results is still a collection of XML elements with only one value
+
+The `/` operator looks for immediate child's, but we can use `//` if we don't care where on the document the element exists:
+
+```sql
+select
+	country_name,
+	country_data,
+	xpath('//name', country_data) "Name elements"
+from misc.country c
+```
+
+We can also search for attributes with the `@` operator:
+
+```sql
+select
+	country_name,
+	country_data,
+	xpath('/country/ethnicgroups/@percentage', country_data) "Percentage"
+from misc.country c
+```
+
+We can also use subscripts to find specific elements in a list:
+
+```sql
+select
+	country_name,
+	country_data,
+	-- Subscripts can be used by providing an index
+	xpath('/country/city[1]', country_data) "First city",
+	xpath('/country/city[last()]', country_data) "Last city",
+	xpath('/country/city[last() - 1]', country_data) "City before last city",
+	-- Subscripts also allows for conditions
+	xpath('/country/city[position() < 3]', country_data) "First two cities",
+	xpath('/country/ethnicgroups[@percentage > 50]', country_data) 
+        "Ethnic groups that represent more then 50%",
+	-- Subscripts also can check if an element or attribute exists as children's
+	xpath('//*[@percentage]', country_data) "Elements with a percentage attribute",
+	xpath('/country/city[located_at[@type="sea"]]/population[node() > 50000]', country_data) 
+        "Population greater then 50,000 of cities located near a sea"
+from misc.country c
+```
+
+> * can be used to represent any node, *@ can be used to represent any attribute
+
+> `node()` can be used to reference an element itself in a subscript
+
+There are many more XPath functions but that's out of the scope of this book, the important concept is that PostgreSQL allows you to use XPath version 1 to find elements inside an XML column.
+
+To extract the text from the elements you can use `text()`:
+
+```sql
+with xml_countries as (
+	select 
+		country_name,
+		unnest(xpath('/country/name/text()', country_data)) "country name xml"
+	from misc.country
+), country_names as (
+	select 
+		country_name,
+		xmlserialize(content "country name xml" as text) "Raw country name"
+	from xml_countries
+)
+select
+	country_name,
+	string_agg(
+		trim(
+			regexp_replace(
+				"Raw country name",
+				'\n',
+				'',
+				'g'
+			)
+		),
+		', '
+	) "Clean country name"
+from country_names
+group by 1
+```
+
+### Exists
+
+You can use the `xpath_exists` function if you only want to check that a path exists or not which is very useful for filters:
+
+```sql
+select country_name, country_data
+from misc.country
+where xpath_exists('/country/city[located_at[@type="sea"]]/population[node() > 50000]', country_data)
+```
+
+The above query only returns countries that have cities located near a sea and with more then 50,000 inhabitants.
+
+
+### Namespaces
+
+For small XMLs is unlikely that you repeat the same element or attribute name, but for big datasets it can happen. Namespaces are a way to identify a element or attribute name within a context, so even when another element or attribute has the same name, we know that it refers to different concepts.
+
+```xml
+<root xmlns:h="http://www.w3.org/TR/html4/" xmlns:f="https://www.w3schools.com/furniture">
+    <h:table>
+        <h:name>My fruits</h:name>
+        <h:tr>
+            <h:td>Apples</h:td>
+            <h:td>Bananas</h:td>
+        </h:tr>
+    </h:table>
+    <f:table>
+        <f:name>African Coffee Table</f:name>
+        <f:width>80</f:width>
+        <f:length>120</f:length>
+    </f:table>
+</root>
+```
+
+The `root` element defines two namespaces by using the attribute `xmlns` and then `:name_of_namespace`, so we have the `h` and `f` namespaces. To differentiate between them, the convention is to use an URL but it generally does not lead to any meaningful resource.
+
+Now the important part is that we can use the namespaces on any element, so in the above example we have two `table` elements, but they don't refer to the same thing because their prefixed by different namespaces (note the `h:`or `f:` before the element name).
+
+This will be important when we need to find specific elements that exists inside a specific namespace. For example try the following query:
+
+```sql
+SELECT xpath('/a/text()', '<my:a xmlns:my="http://example.com">test</my:a>'::xml)
+```
+
+You'll find that PostgreSQL does not find the `a` element, this is because we're not specifying the namespace of the element:
+
+```sql
+SELECT xpath('/my:a/text()', '<my:a xmlns:my="http://example.com">test</my:a>'::xml)
+```
+
+Now you'll notice that it throws an error because XPath has no `my` namespace declared, we need to feed the namespaces directly to the `xpath` function.
+
+```sql
+SELECT xpath(
+	'/my:a/text()',
+	'<my:a xmlns:my="http://example.com">test</my:a>'::xml,
+	ARRAY[ARRAY['my', 'http://example.com']]
+)
+```
+
+The optional third argument of `xpath` is an array of namespaces (because the XML could have multiple namespaces defined). Each element of the array must be also an array with only two text items, the first one is the same of the namespace, and the second is the value of the namespace (by convention the link).
+
+Let's test this with the previous example which has two namespaces:
+
+```sql
+select xpath(
+	'/root/f:table/f:name/text()',
+	'<root xmlns:h="http://www.w3.org/TR/html4/" xmlns:f="https://www.w3schools.com/furniture">
+	    <h:table>
+            <h:name>My fruits</h:name>
+	        <h:tr>
+	            <h:td>Apples</h:td>
+	            <h:td>Bananas</h:td>
+	        </h:tr>
+	    </h:table>
+	    <f:table>
+	        <f:name>African Coffee Table</f:name>
+	        <f:width>80</f:width>
+	        <f:length>120</f:length>
+	    </f:table>
+	</root>'::xml,
+	array[
+		array['h', 'http://www.w3.org/TR/html4/'],
+		array['f', 'https://www.w3schools.com/furniture']
+	]
+)
+```
+
+It correctly only finds the `name` element from the `f` namespace.
 
 ## Exercises
 
 Solve them in the [query editor](../query-editor.html).
+
+1. For the 5 authors with more books, find the `bookshelves` that they write most. (HINT: check `json_array_elements` and `jsonb_build_array`)
+2. Count the number of borders each country has and order them by descending order

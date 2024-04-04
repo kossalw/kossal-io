@@ -2,7 +2,7 @@
 title: "Selecting data"
 description: "Learn to use the SELECT clause in PostgreSQL to fetch hardcoded data or stored information from tables"
 date: "2/13/2024"
-date-modified: "4/02/2024"
+date-modified: "4/04/2024"
 ---
 
 Let's begin by learning how to fetch information from it. First of all, PostgreSQL implements the SQL communication standard, that means that you can send commands to PostgreSQL through an SQL-like language. No engine implements the SQL protocol perfectly and PostgreSQL is no exception, it has it's own flavor of SQL and we'll learn to use it in the following lessons. Onwards, whenever we use the term **SQL** it means the PostgreSQL version of SQL instead of the SQL standard.
@@ -124,7 +124,7 @@ select 3, 'Hello again!', '2024-01-03'::date
 
 ### Functions
 
-SQL allows us to transform data or execute complex logic through the use of **functions**. These can be called using the **functions** name and passing arguments with the syntax `funcion_name(arg1, arg2, ...)`. Let's run some examples:
+SQL allows us to transform data or execute complex logic through the use of **functions**. These can be called using the **functions** name and passing arguments with the syntax `function_name(arg1, arg2, ...)`. Let's run some examples:
 
 ``` sql
 -- The round function takes the 5.35 input and rounds i to the nearest integer
@@ -343,7 +343,7 @@ from "Track"
 
 ### Schemas
 
-Tables in PostegreSQL are stored in Schemas, think of it like a folder that contains multiple tables, views and other elements that we use to organize our data. The default schema is generally called `public` and we don't need to specify it in the `FROM` clause, but we still can do it using the `.` notation:
+Tables in PostgreSQL are stored in Schemas, think of it like a folder that contains multiple tables, views and other elements that we use to organize our data. The default schema is generally called `public` and we don't need to specify it in the `FROM` clause, but we still can do it using the `.` notation:
 
 ``` sql
 select * from public."Track"
@@ -432,7 +432,7 @@ select count(*), sum("Milliseconds" / 1000) from "Track"
 
 ### Unnest
 
-We have seen how arrays are collections of other data types like text, numbers or others. In some ocasions we want to work with the elements of the array as if they were in their own row, so we can use the set generating function of `unnest`:
+We have seen how arrays are collections of other data types like text, numbers or others. In some occasions we want to work with the elements of the array as if they were in their own row, so we can use the set generating function of `unnest`:
 
 ```sql
 select unnest(string_to_array("Composer", ','))

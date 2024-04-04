@@ -2,7 +2,7 @@
 title: "Subqueries"
 description: "Learn to use subqueries, recursive and non-recursive CTEs, virtual tables, and lateral joins in PostgreSQL to create complex and structured queries"
 date: "2/13/2024"
-date-modified: "4/02/2024"
+date-modified: "4/04/2024"
 ---
 
 Congratulations for passing the basic queries section! Even without knowing any advance methods you've learn very powerful tools that will empower you to leverage your database data. But why stop here? Let's go from good to incredible.
@@ -319,5 +319,5 @@ order by 2 desc
 ```
 
 2. Find all tickets with at least 1 canceled flight in business class.
-3. Find the whole hierarchy of managers and underlinks of employee 114 (use the `company.employees` table)
+3. Find the whole hierarchy of managers and underlings of employee 114 (use the `company.employees` table)
 4. Recursively calculate the accumulated percentage sale of each billing country that represents at least 10% of total sales. This accumulated percentage should equal 100% at then end.

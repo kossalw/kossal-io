@@ -2,14 +2,336 @@
 title: "Window functions"
 description: "Learn to use window functions in a visual, easy, and intuitive way using PostgreSQL to create grouped and aggregated metrics without collapsing rows"
 date: "2/13/2024"
-date-modified: "2/14/2024"
+date-modified: "4/04/2024"
 ---
-
-# Currently in DRAFT
 
 ## Over
 
-Window functions allows us to compute aggregate information without collapsing rows.
+Window functions allows us to compute aggregate information without collapsing rows, let's try it with an example. Say you want to calculate the average salary by department of the `company.employees` table but show the comparison between the employee, their salary and the department average salary, a first try could look like:
+
+```sql
+select
+	e.first_name,
+	e.last_name,
+	d.department_name,
+	department_salaries."Average department salary"
+from company.employees e
+join company.departments d using (department_id)
+join (
+	select
+		d2.department_id,
+		avg(e2.salary) "Average department salary"
+	from company.employees e2
+	join company.departments d2 using (department_id)
+	group by 1
+) as department_salaries using (department_id)
+order by 4 desc
+```
+
+Now let's compare it with using a window function:
+
+```sql
+select
+	e.first_name,
+	e.last_name,
+	e.salary,
+	d.department_name,
+	avg(e.salary) over (partition by e.department_id) department_average_salary
+from company.employees e
+join company.departments d using (department_id)
+order by department_average_salary desc
+```
+
+We can achieve the same without using subqueries. Now let's examine the structure of the window function:
+
+- `avg(e.salary)` is the aggregate function that we want to compute.
+- `over` signals PostgreSQL that instead of using `GROUP BY`, we'll specify a window function.
+- `(partition by e.department_id)` is the windows definition, it tells PostgreSQL to calculate the aggregate function `avg(e.salary)` for all rows that have the same `e.department_id`, which is the same action that we do when we use `GROUP BY`.
+
+The important concept of window functions is that it let's you process groups of rows called a window, you can use these windows to calculate aggregate functions but there are other types of functions that can be used as well. For example, what if we want to rank the employees based on their salary among the same job title and department?:
+
+```sql
+select
+	e.first_name,
+	e.last_name,
+	d.department_name,
+	j.job_title,
+	e.salary,
+	rank() over (partition by e.department_id, j.job_id order by e.salary desc) "Salary rank between peers",
+	round(avg(e.salary) over (partition by e.department_id, j.job_id), 2) "Dep Avg Salary",
+    rank() over (order by e.salary desc) "Salary rank between the whole company",
+	sum(e.salary) over () "Total salary"
+from company.employees e
+join company.departments d using (department_id)
+join company.jobs j using (job_id)
+order by d.department_name, j.job_title, "Salary rank between peers" asc
+```
+
+For the `rank()` function we need to specify a way to rank the window, which we do with `order by e.salary desc`, and we can further specify the window by using `PARTITION BY`, but it's not necessary, in the above example we have ranked peers salary but also among the whole company. Further more the `sum(e.salary) over () "Total salary"` specifies an empty window, which means that it takes all rows, it sums up all salaries across the company.
+
+### Window frame
+
+Our window can be further customized, we may not want to process the whole windows for example, just the first rows up until the current row or from the current row until the last one. This concept is called a window frame and it can be very useful for certain operations. Let's take the following example:
+
+```sql
+select
+	"BillingCountry",
+	"Total",
+	round("Total" / sum("Total") over () * 100 , 2) "% over countries",
+	round(sum("Total") over (order by "Total" desc) / sum("Total") over () * 100 , 2) "Accumulated %"
+from (	
+	select
+		"BillingCountry",
+		sum("Total") "Total"
+	from "Invoice"
+	group by 1
+) as invoice
+order by 2 desc
+```
+
+- We calculated the % of sales each country represents over the total sales `sum("Total") over ()` on `"% over countries"`
+- If we wanted to calculate an accumulated % that each country represents, we can define a window frame with the `(order by "Total" desc)` windows definition, by default it will only consider rows from the beginning until the current row, so it only sums up sales until the current row.
+
+Now window frames have multiple options so bear with me. They're 3 options that you essentially want to control:
+
+- Where to start (`frame_start`)
+- When to stop (`frame_end`)
+- If some row in the middle needs to be excluded (`frame_exclusion`)
+
+For the `frame_start` and `frame_end` we can use the following clauses:
+
+```
+UNBOUNDED PRECEDING --> from the first row
+offset PRECEDING --> how many rows before the current row
+CURRENT ROW --> Start or end until the current row
+offset FOLLOWING --> how many rows after the current row
+UNBOUNDED FOLLOWING --> until the last row
+```
+
+> `offset` is a number or expression that returns a number
+
+If you don't specify an `ORDER BY` clause inside a window definition, automatically a window frame get's created with the following structure:
+
+`ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`
+
+> For now take for granted that ROWS appear at the beginning, we'll see later that it's a peer group
+
+This means that the window frame that will be processed is contained between the the first row of the window until the last row.
+
+When you define an `ORDER BY`, the frame takes this structure:
+
+`ORDER BY x ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`
+
+Now rows from the beginning until the current row get's processed. Let's see some examples in action:
+
+```sql
+select
+	"BillingCountry",
+	"Total",
+	-- This is the default behavior without window frames
+	sum("Total") over 
+		(order by "Total" desc rows between unbounded preceding and unbounded following)
+	as "Sum of all totals",
+	-- This is the default behavior by only specifying order by
+	-- You can skip the BETWEEN clause if you only specify an frame_start,
+	-- it will automatically determine that the frame_end is CURRENT ROW
+	sum("Total") over 
+		(order by "Total" desc rows unbounded preceding)
+	as "Sum from beginning until current row",
+	-- This calculates the sum of sales of the current row until the last one
+	sum("Total") over 
+		(order by "Total" desc rows between current row and unbounded following)
+	as "Sum from current row until last row",
+	sum("Total") over 
+		(order by "Total" desc rows between 2 preceding and 2 following)
+	as "Sum from 2 rows from and since current row"
+from (	
+	select
+		"BillingCountry",
+		sum("Total") "Total"
+	from "Invoice"
+	group by 1
+) as invoice
+order by 2 desc
+```
+
+For the `frame_exclusion` we can use the following clauses after the `frame_start` and `frame_end`:
+
+```
+EXCLUDE NO OTHERS --> The default, it does not exclude anything
+EXCLUDE CURRENT ROW --> Don't take into account the current row
+-- You'll understand the following options once we jump to peer groups
+EXCLUDE GROUP --> Exclude the current peer group
+EXCLUDE TIES --> Exclude the peer group but not the current row
+```
+
+```sql
+select
+	"BillingCountry",
+	"Total",
+	sum("Total") over (
+		order by "Total" desc
+		rows --> Peer group
+		between unbounded preceding --> frame_start
+		and unbounded following --> frame_end
+		exclude current row --> frame_exclusion
+	)
+	as "Sum of all totals minus current total"
+from (	
+	select
+		"BillingCountry",
+		sum("Total") "Total"
+	from "Invoice"
+	group by 1
+) as invoice
+order by 2 desc
+```
+
+### Peer group
+
+```sql
+select
+	"BillingCountry",
+	"Total",
+	round("Total" / sum("Total") over () * 100 , 2) "% over countries",
+	round(sum("Total") over (order by "Total" desc) / sum("Total") over () * 100 , 2) "Accumulated %"
+from (	
+	select
+		"BillingCountry",
+		sum("Total") "Total"
+	from "Invoice"
+	group by 1
+) as invoice
+order by 2 desc
+```
+
+For the above query, one problem that you could find with the `"Accumulated %"` column is that for rows that have the same `"Total"` value it calculates the aggregate function `sum("Total")` as if it took into account all the rows that have the same value. This happens because when for PostgreSQL the `CURRENT ROW` expression means different things depending on how we define peer groups.
+
+Peer groups exists in 3 types:
+
+- `GROUPS`: rows that are ordered to have the same value will be inside a peer group, this is the default peer mode. When we use `CURRENT ROW`, `offset PRECEDING` or `offset FOLLOWING`, we are referring to groups and not unique rows.
+- `ROWS`: each row forms it's unique peer group. When we use `CURRENT ROW`, `offset PRECEDING` or `offset FOLLOWING`, we are referring to unique rows.
+- `RANGE`: this mode allows us to use different offsets types, for example instead of using `BETWEEN 2 preceding and 2 following' we could use `BETWEEN interval '1 day' preceding and interval '2 day' following`. For this mode to work we need to only use one column on the `ORDER BY` clause inside the window definition. `CURRENT ROW` works the same as in `GROUPS` mode.
+
+Let's rewrite our previous example:
+
+```sql
+select
+	"BillingCountry",
+	"Total",
+	round("Total" / sum("Total") over () * 100 , 2) "% over countries",
+	round(
+		sum("Total") over (order by "Total" desc
+			groups between unbounded preceding and current row
+		) / 
+		sum("Total") over () * 100 ,
+	2) "Accumulated % in group mode",
+	round(
+		sum("Total") over (order by "Total" desc
+			rows between unbounded preceding and current row
+		) / 
+		sum("Total") over () * 100 ,
+	2) "Accumulated % in row mode"
+from (	
+	select
+		"BillingCountry",
+		sum("Total") "Total"
+	from "Invoice"
+	group by 1
+) as invoice
+order by 2 desc
+```
+
+The column `"Accumulated % in row mode"` uses row mode so we get the behavior that we expect. Now let's try a `RANGE` mode:
+
+```sql
+select 
+	dates.day "Day",
+	f.flight_no,
+	f.departure_airport,
+	f.arrival_airport,
+	f.scheduled_departure,
+	f.scheduled_arrival,
+	count(*) over (
+		partition by f.departure_airport
+		order by f.scheduled_departure
+		range between
+		interval '4 hour' preceding
+		and
+		interval '4 hour' following
+		exclude current row
+	) "Flights departing from same airport within a 4 hour frame"
+from generate_series(
+	'2017-09-01'::date,
+	'2017-09-02'::date,
+	interval '1 day'
+) as dates (day)
+left join bookings.flights f on date_trunc('day', f.scheduled_departure) = dates.day
+```
+
+For each row (flight), we counts the number of flights depart from the same airport within 4 hours of the current flight departure. We exclude the current row to not count it, if we excluded by groups or ranges we could have potentially not counted other flights that depart at the same time as the current flight.
+
+### Filter
+
+We can combine the `FILTER` clause if we want some rows to not be included in our window, for example for the past query we may not want to include cancelled flights:
+
+```sql
+select 
+	dates.day "Day",
+	f.flight_no,
+	f.departure_airport,
+	f.arrival_airport,
+	f.scheduled_departure,
+	f.scheduled_arrival,
+	count(*) filter (where f.status != 'Cancelled')
+	over (
+		partition by f.departure_airport
+		order by f.scheduled_departure
+		range between
+		interval '4 hour' preceding
+		and
+		interval '4 hour' following
+		exclude current row
+	) "Flights overlapping departing from same airport"
+from generate_series(
+	'2017-09-01'::date,
+	'2017-09-02'::date,
+	interval '1 day'
+) as dates (day)
+left join bookings.flights f on date_trunc('day', f.scheduled_departure) = dates.day
+```
+
+### Window clause
+
+Finally, we may have a query that uses the same window expression for multiple columns, PostgreSQL allows us to define it once and use it multiple times with the `WINDOW` clause:
+
+```sql
+select
+	"BillingCountry",
+	"Total",
+	round("Total" / sum("Total") over all_rows * 100 , 2) "% over countries",
+	round(sum("Total") over start_to_current_row / sum("Total") over all_rows * 100 , 2) "Accumulated %"
+from (	
+	select
+		"BillingCountry",
+		sum("Total") "Total"
+	from "Invoice"
+	group by 1
+) as invoice
+window all_rows as (),
+	start_to_current_row as (order by "Total" desc
+	rows between
+	unbounded preceding and
+	current row
+	)
+order by 2 desc
+```
+
+An additional advantage is that we can give contextual names to the window expressions, so it's easier to read in the future.
+
+### Common window functions
+
+We have seen the use of aggregate functions like `sum` and `avg` used with windows but it's not exclusive to them, any other aggregate function can be used as well. Additionally we saw the use of functions that only work with windows like `rank`, but they're [others](https://www.postgresql.org/docs/8.4/functions-window.html) that are useful too:
 
 ## Exercises
 
