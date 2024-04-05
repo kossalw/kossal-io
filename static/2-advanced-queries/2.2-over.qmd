@@ -2,7 +2,7 @@
 title: "Window functions"
 description: "Learn to use window functions in a visual, easy, and intuitive way using PostgreSQL to create grouped and aggregated metrics without collapsing rows"
 date: "2/13/2024"
-date-modified: "4/04/2024"
+date-modified: "4/05/2024"
 ---
 
 ## Over
@@ -211,7 +211,7 @@ Peer groups exists in 3 types:
 
 - `GROUPS`: rows that are ordered to have the same value will be inside a peer group, this is the default peer mode. When we use `CURRENT ROW`, `offset PRECEDING` or `offset FOLLOWING`, we are referring to groups and not unique rows.
 - `ROWS`: each row forms it's unique peer group. When we use `CURRENT ROW`, `offset PRECEDING` or `offset FOLLOWING`, we are referring to unique rows.
-- `RANGE`: this mode allows us to use different offsets types, for example instead of using `BETWEEN 2 preceding and 2 following' we could use `BETWEEN interval '1 day' preceding and interval '2 day' following`. For this mode to work we need to only use one column on the `ORDER BY` clause inside the window definition. `CURRENT ROW` works the same as in `GROUPS` mode.
+- `RANGE`: this mode allows us to use different offsets types, for example instead of using `BETWEEN 2 preceding and 2 following` we could use `BETWEEN interval '1 day' preceding and interval '2 day' following`. For this mode to work we need to only use one column on the `ORDER BY` clause inside the window definition. `CURRENT ROW` works the same as in `GROUPS` mode.
 
 Let's rewrite our previous example:
 
@@ -333,6 +333,55 @@ An additional advantage is that we can give contextual names to the window expre
 
 We have seen the use of aggregate functions like `sum` and `avg` used with windows but it's not exclusive to them, any other aggregate function can be used as well. Additionally we saw the use of functions that only work with windows like `rank`, but they're [others](https://www.postgresql.org/docs/8.4/functions-window.html) that are useful too:
 
+```sql
+select
+	e.first_name,
+	e.last_name,
+	d.department_name,
+	e.salary,
+
+	-- Indexes every row without counting peer groups
+	row_number() over department_order_by_salary,
+
+	-- Rank leaves gaps, check the IT department
+	rank() over department_order_by_salary,
+
+	-- Dense_rank does not leave gaps
+	dense_rank() over department_order_by_salary,
+
+	-- Relative rank of the current row: (rank - 1) / (total rows - 1)
+	percent_rank() over department_order_by_salary,
+
+	-- Relative rank of the current row:
+	-- (number of rows preceding or peer with current row) / (total rows)
+	cume_dist() over department_order_by_salary,
+
+	-- Find the salary of the peer group before (offset of 1) the current peer group,
+	-- if none is found, default to the current salary
+	lag(e.salary, 1, e.salary) over department_order_by_salary,
+
+	-- Same as lag but with following peer groups
+	lead(e.salary, 1, e.salary) over department_order_by_salary,
+
+	-- This finds the first peer group of the window, in this case is like
+	-- asking for the max salary of the department
+	first_value(e.salary) over department_order_by_salary,
+	last_value(e.salary) over department_order_by_salary,
+
+	-- Find the second highest salary
+	nth_value(e.salary, 2) over department_order_by_salary,
+
+	-- Divide all employees in five buckets of salaries
+	ntile(5) over (order by e.salary desc)
+from company.employees e
+join company.departments d using (department_id)
+window department_order_by_salary as (partition by d.department_id order by e.salary desc)
+order by d.department_name, 5 asc
+```
+
 ## Exercises
 
 Solve them in the [query editor](../query-editor.html).
+
+1. Rank flights departing on the first and second of september 2017. The rank must be grouped by the departure airport and ordered by the duration of flights.
+2. For the `"Invoice"` table, calculate weekly sales and compare them against last week sales, the average weekly sales of the last month and last three months.
