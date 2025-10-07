@@ -22,8 +22,8 @@ env:
     - name: metabase-secrets
       key: METABASE_PASSWORD
 
-# imagePullSecrets:
-#  - name: do-registry
+imagePullSecrets:
+- name: regcred
 
 service:
   type: ClusterIP
@@ -45,13 +45,13 @@ ingress:
       hosts:
         - "*.kossal.io"
 
-resources:
-  limits:
-    cpu: 1
-    memory: "1.3G"
-  requests:
-    cpu: 0.5
-    memory: "256M"
+# resources:
+#   limits:
+#     cpu: 1
+#     memory: "1.3G"
+#   requests:
+#     cpu: 0.5
+#     memory: "256M"
 
 
 readinessProbe:

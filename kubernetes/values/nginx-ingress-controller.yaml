@@ -45,7 +45,7 @@ clusterDomain: cluster.local
 ## @section Nginx Ingress Controller parameters
 
 ## Bitnami NGINX Ingress controller image version
-## ref: https://hub.docker.com/r/bitnami/nginx-ingress-controller/tags/
+## ref: https://hub.docker.com/r/bitnamilegacy/nginx-ingress-controller/tags/
 ## @param image.registry [default: REGISTRY_NAME] Nginx Ingress Controller image registry
 ## @param image.repository [default: REPOSITORY_NAME/nginx-ingress-controller] Nginx Ingress Controller image repository
 ## @skip image.tag Nginx Ingress Controller image tag (immutable tags are recommended)
@@ -55,7 +55,7 @@ clusterDomain: cluster.local
 ##
 image:
   registry: docker.io
-  repository: bitnami/nginx-ingress-controller
+  repository: bitnamilegacy/nginx-ingress-controller
   tag: 1.9.6-debian-12-r8
   digest: ""
   ## Specify a imagePullPolicy
@@ -772,7 +772,7 @@ defaultBackend:
   service:
     ## @param defaultBackend.service.type Kubernetes Service type for default backend
     ##
-    type: ClusterIP
+    type: LoadBalancer
     ## @param defaultBackend.service.ports.http Default backend service HTTP port
     ##
     ports:

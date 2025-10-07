@@ -13,7 +13,7 @@ kubectl create secret generic public-git-secrets \
     --from-literal=GIT_REPOSITORY="$GIT_REPOSITORY" \
     --from-literal=GIT_BRANCH="$GIT_BRANCH"
 
-# Environment configmap
+# # Environment configmap
 kubectl delete configmap environment-config || true
 kubectl create configmap environment-config \
     --from-literal=ENVIRONMENT=PROD
@@ -38,5 +38,17 @@ kubectl create secret generic metabase-secrets \
 
 # Digital ocean access token for certificate renewal
 kubectl delete secrets digitalocean-dns || true
-kubectl create secret generic digitalocean-dns \
-    --from-literal=access-token="$DIGITAL_OCEAN_KEY"
+kubectl create secret generic digitalocean-dns --from-literal=access-token="$DIGITAL_OCEAN_KEY"
+
+# Docker Hub
+kubectl create secret docker-registry regcred \
+    --docker-server="$DOCKER_HUB_SERVER" \
+    --docker-username="$DOCKER_HUB_USER" \
+    --docker-password="$DOCKER_HUB_PASS" \
+    --docker-email="$DOCKER_HUB_EMAIL"
+
+# Grafana secrets
+kubectl delete secret grafana-secrets || true
+kubectl create secret generic grafana-secrets \
+    --from-literal=ADMIN_USER="$GRAFANA_ADMIN_USER" \
+    --from-literal=ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD"

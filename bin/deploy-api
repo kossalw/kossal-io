@@ -16,12 +16,13 @@ image_name="query-editor-api"
 # Build image
 docker buildx build --platform linux/amd64,linux/arm64 -t "$image_name":"$tag" -f ./kubernetes/container/"$image_name"/Dockerfile .
 
-# Upload image
-docker tag "$image_name":"$tag" "$DIGITAL_OCEAN_REGISTRY"/"$image_name":"$tag"
-docker push "$DIGITAL_OCEAN_REGISTRY"/"$image_name":"$tag"
+# # Upload image
+docker tag "$image_name":"$tag" "$DOCKER_HUB_USER"/"$image_name":"$tag"
+docker push "$DOCKER_HUB_USER"/"$image_name":"$tag"
 
 # Deploy
 helm upgrade "$image_name" \
+    --install \
     --set image.tag="$tag" \
-    --set image.repository="$DIGITAL_OCEAN_REGISTRY/query-editor-api" \
+    --set image.repository="$DOCKER_HUB_USER/query-editor-api" \
     "kubernetes/charts/$image_name"

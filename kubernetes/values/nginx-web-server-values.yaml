@@ -70,7 +70,7 @@ diagnosticMode:
 ##
 image:
   registry: docker.io
-  repository: bitnami/nginx
+  repository: bitnamilegacy/nginx
   tag: 1.25.4-debian-12-r2
   digest: ""
   ## Specify a imagePullPolicy
@@ -374,10 +374,24 @@ autoscaling:
   targetMemory: ""
 ## @param extraVolumes Array to add extra volumes
 ##
-extraVolumes: []
+extraVolumes:
+  - name: nginx-configuration
+    configMap:
+      name: public-nginx-configuration
+      items:
+        - key: nginx.conf
+          path: nginx.conf
+        - key: mime.types
+          path: mime.types
 ## @param extraVolumeMounts Array to add extra mount
 ##
-extraVolumeMounts: []
+extraVolumeMounts:
+  - name: nginx-configuration
+    mountPath: /opt/bitnami/nginx/conf/nginx.conf
+    subPath: nginx.conf
+  - name: nginx-configuration
+    mountPath: /opt/bitnami/nginx/conf/mime.types
+    subPath: mime.types
 ## Pods Service Account
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
 ##
@@ -448,7 +462,7 @@ cloneStaticSiteFromGit:
   ##
   image:
     registry: docker.io
-    repository: bitnami/git
+    repository: bitnamilegacy/git
     tag: 2.43.2-debian-12-r2
     digest: ""
     ## Specify a imagePullPolicy
@@ -566,7 +580,7 @@ service:
   ## @param service.ports.https Service HTTPS port
   ##
   ports:
-    http: 80
+    http: 8080
   ##
   ## @param service.nodePorts [object] Specify the nodePort(s) value(s) for the LoadBalancer and NodePort service types.
   ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
@@ -880,7 +894,7 @@ metrics:
   ##
   image:
     registry: docker.io
-    repository: bitnami/nginx-exporter
+    repository: bitnamilegacy/nginx-exporter
     tag: 1.1.0-debian-12-r7
     digest: ""
     pullPolicy: IfNotPresent
